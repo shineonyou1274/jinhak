@@ -167,8 +167,10 @@ const TAIL = '(?=[\\s,.)\\]·]|은|는|이|가|을|를|과|와|의|도|만|께|�
 const MASK_LABELS = ['이름', '성명', '주민번호', '출력정보', '전화번호', '이메일', '학번', '학적', '학교', '주소', '날짜', '가림'];
 function findNames(t) {
   const out = new Set(); let m;
-  const re = /(?:성\s*명|학생명|이\s*름)\s*[:：]?\s*\n?\s*([가-힣]{2,4})(?![가-힣])/g;
-  while ((m = re.exec(t))) if (!/^(학번|학년|성별|주소|생년|번호|주민)/.test(m[1])) out.add(m[1]);
+  // '성명:' 뒤 이름은 그대로, '이름' 뒤는 콜론이 있을 때만(본문의 '이름 짓기' 같은 말 제외)
+  const re = /(?:성\s*명|학생명)\s*[:：]?\s*\n?\s*([가-힣]{2,4})(?![가-힣])|이\s*름\s*[:：]\s*\n?\s*([가-힣]{2,4})(?![가-힣])/g;
+  const notName = /^(학번|학년|성별|주소|생년|번호|주민)|(기|하기|보기|하다|함|을|를|의)$/;
+  while ((m = re.exec(t))) { const n = m[1] || m[2]; if (n && !notName.test(n)) out.add(n); }
   return [...out];
 }
 function maskText(text, extra) {
@@ -505,7 +507,34 @@ function analyzeRecord() {
   R.sysAuto = !!guess && guess !== sysOf(S.profile.curr);
   R.sysWhy = maxG >= 6 ? '성적에 6등급 이상이 있어요' : guess === 9 ? '2015 개정 과목 이름이 보여요' : '2022 개정 과목 이름이 보여요';
   R.evidence = buildEvidence(items);
+  addMajorEvidence(R);
   R.analyzed = true;
+}
+/* 진로역량 '전공(계열) 관련 교과' 항목: 희망 분야 낱말이 나오는 세특 문장을 근거로 */
+function majorWords(R) {
+  const out = new Set();
+  // 원문 줄 단위에서 '희망분야' 뒤 짧은 구간만 읽는다(문단 전체를 잡지 않게)
+  const re = /희망\s*분야\s*[:：]?[ \t]*([^\n]{1,30})/g; let mm;
+  while ((mm = re.exec(R.masked || ''))) mm[1].split(/[,·/\s]+|및/).slice(0, 6).forEach(w => { w = w.replace(/(계열|분야|학과|학부|전공)$/, '').trim(); if (w.length >= 2 && w.length <= 8 && /^[가-힣A-Za-z]+$/.test(w)) out.add(w); });
+  String(S.profile.interest || '').split(/[,·/\s]+/).forEach(w => { w = w.trim(); if (w.length >= 2) out.add(w); });
+  // '건축학'→'건축'처럼 '학'만 떼고, '기계공학'→'기계'는 만들지 않는다('기계와 대화' 같은 오탐 방지)
+  [...out].forEach(w => { if (/공학$/.test(w)) return; const s = w.replace(/학$/, ''); if (s.length >= 2) out.add(s); });
+  return [...out].filter(w => !/^(희망|없음|미정)$/.test(w));
+}
+function addMajorEvidence(R) {
+  const mw = majorWords(R); R.majorWords = mw; if (!mw.length) return;
+  const effort = R.evidence['전공(계열) 관련 교과 이수 노력'], ach = R.evidence['전공(계열) 관련 교과 성취도'];
+  const cut = R.system === 5 ? 2 : 3;
+  const good = new Set(R.grades.filter(g => /^A/.test(g.성취도 || '') || (Number(g.등급) && Number(g.등급) <= cut)).map(g => nsp(g.과목)));
+  R.items.forEach((it, idx) => {
+    if (it.영역 !== '세특') return;
+    sentences(it.내용).forEach(sent => {
+      const found = mw.filter(w => sent.includes(w)); if (!found.length) return;
+      const e = { idx, sent, kws: found, 영역: it.영역, 학년: it.학년, 과목: it.과목 };
+      if (effort.length < 40 && !effort.some(x => x.sent === sent)) effort.push(e);
+      if (good.has(nsp(it.과목)) && ach.length < 40 && !ach.some(x => x.sent === sent)) ach.push(e);
+    });
+  });
 }
 function takenSets() {
   const taken = new Set(), gy = new Set();
@@ -685,6 +714,7 @@ function recEvidence() {
   }).join('')}</div>`).join('');
   return `<section class="panel mint"><h2>기록 근거</h2><p class="one">평가 항목별로 내 학생부 문장을 모았어요. 점수는 매기지 않아요. 문장 옆 버튼으로 원본과 대조해 보세요.</p>
     ${ORIG ? '<div class="row"><button class="btn small white" data-act="origShow" data-s="">내 학생부 원본 PDF 펼치기</button></div>' : ''}
+    ${(R.majorWords || []).length ? `<p class="tiny">전공(계열) 항목은 희망 분야 낱말 <b>${esc(R.majorWords.join(', '))}</b>이 나오는 세특 문장으로 찾았어요. 성취도 항목은 그중 성취도 A·상위 등급 과목만이에요.</p>` : ''}
     <p>${areaCount || '<span class="badge rose">영역을 못 나눴어요</span>'}</p>${comps}</section>`;
 }
 function evHTML(e) {
@@ -1152,19 +1182,25 @@ function recQuestions() {
   const T = DS['질문템플릿'].filter(t => t.사용 !== 'N');
   const major = S.iv.dept || S.profile.interest || '희망 전공', univ = S.iv.univ || '지원 대학';
   const items = S.rec.items, out = [];
-  const exc = it => { const s = sentences(it.내용)[0] || it.내용; return s.length > 60 ? s.slice(0, 58) + '…' : s; };
-  const fill = (tpl, it, kw) => tpl.replace(/\{학년\}/g, it && it.학년 ? it.학년 + '학년' : '').replace(/\{과목\}/g, it && it.과목 ? it.과목 : '')
+  // 표 머리글('2 진로활동 33 희망분야 …')을 떼고, 평가 문장보다 활동 문장을 고른다
+  const clean = t => String(t || '').replace(/^\s*\d?\s*(자율|동아리|진로)활동\s*\d+\s*/, '').replace(/희망\s*분야\s*[가-힣A-Za-z]+(?:\s*(?:계열|분야))?(?:\s*[,·]\s*[가-힣A-Za-z]+(?:\s*(?:계열|분야))?)*\s*/, '');
+  const ACT_RE = /(탐구|읽고|읽음|제작|설계|발표|조사|분석|실험|작성|참여|맡아|구성|기획|주제로|연주|토론|해결)/, EVAL_RE = /(학생임|돋보임|우수함|기대됨|인상적임|집중력이 높음)\.?\s*$/;
+  const exc = it => { const ss = sentences(clean(it.내용)); const s = ss.find(x => ACT_RE.test(x) && !EVAL_RE.test(x)) || ss.find(x => !EVAL_RE.test(x)) || ss[0] || clean(it.내용); return s.length > 60 ? s.slice(0, 58) + '…' : s; };
+  const jong = w => { const t = String(w || '').replace(/[\s'"’”)\]….]+$/, ''); const ch = t.slice(-1); const c = ch.charCodeAt(0) - 0xAC00; if (c >= 0 && c <= 11171) return c % 28; if (/[013678]/.test(ch)) return 1; if (/[A-Za-z]/.test(ch)) return /[lmnr]/i.test(ch) ? 1 : 0; return 0; };
+  const PAIR = { '이': ['이', '가'], '가': ['이', '가'], '을': ['을', '를'], '를': ['을', '를'], '은': ['은', '는'], '는': ['은', '는'], '과': ['과', '와'], '와': ['과', '와'] };
+  const josaFix = (tpl, vals) => tpl.replace(/\{(키워드|전공|대학|과목|발췌)\}(['’"”]?)(이|가|을|를|은|는|과|와)(?![가-힣])/g, (m, k, q, p) => '{' + k + '}' + q + PAIR[p][jong(vals[k]) ? 0 : 1]);
+  const fill = (tpl, it, kw) => josaFix(tpl, { 키워드: kw || '', 전공: major, 대학: univ, 과목: it && it.과목 || '', 발췌: it ? exc(it) : '' }).replace(/\{학년\}/g, it && it.학년 ? it.학년 + '학년' : '').replace(/\{과목\}/g, it && it.과목 ? it.과목 : '')
     .replace(/\{발췌\}/g, it ? exc(it) : '').replace(/\{키워드\}/g, kw || '').replace(/\{전공\}/g, major).replace(/\{대학\}/g, univ).replace(/\s{2,}/g, ' ').trim();
   const pick = (area, n) => items.filter(i => i.영역 === area).sort((a, b) => b.내용.length - a.내용.length).slice(0, n);
   const use = (type, area) => T.filter(t => t.유형 === type && t.적용영역 === area);
   const add = (q, why, tag) => { if (q && !/\{/.test(q) && !out.some(o => o.q === q)) out.push({ q, why, tag }); };
   pick('세특', 3).forEach((it, i) => {
-    const kws = keywords(it.내용);
+    const kws = keywords(clean(it.내용));
     const a = use('생기부확인', '세특')[0]; if (a) add(fill(a.템플릿, it), a.출제의도, '세특');
     if (kws[0]) { const b = use(['개념설명', '전공연계', '심화'][i % 3], '세특')[0]; if (b) add(fill(b.템플릿, it, kws[0]), b.출제의도, '세특'); }
   });
   ['자율', '동아리', '진로'].forEach(area => { const it = pick(area, 1)[0]; if (!it) return; const a = use('생기부확인', area)[0]; if (a) add(fill(a.템플릿, it), a.출제의도, AREA_NAME[area]);
-    const kw = keywords(it.내용)[0]; const b = T.find(t => t.적용영역 === area && t.유형 !== '생기부확인'); if (b && (kw || !/\{키워드\}/.test(b.템플릿))) add(fill(b.템플릿, it, kw), b.출제의도, AREA_NAME[area]); });
+    const kw = keywords(clean(it.내용))[0]; const b = T.find(t => t.적용영역 === area && t.유형 !== '생기부확인'); if (b && (kw || !/\{키워드\}/.test(b.템플릿))) add(fill(b.템플릿, it, kw), b.출제의도, AREA_NAME[area]); });
   const hs = pick('행특', 1)[0]; if (hs) { const a = use('공동체', '행특')[0]; if (a) add(fill(a.템플릿, hs), a.출제의도, '행동특성'); }
   const ev = S.rec.evidence || {}; const gap = Object.keys(TAG_RULES).find(k => !(ev[k] || []).length);
   if (gap) { const a = T.find(t => t.유형 === '근거공백' && t.적용영역 === '전체'); if (a) add(a.템플릿.replace('{세부항목}', gap), a.출제의도, '빈칸'); }
