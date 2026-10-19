@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#14213D">
+<title>진학 나침반</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+<div id="app" class="app">
+  <header class="top" id="top"></header>
+  <main id="main" tabindex="-1"></main>
+  <div id="candbar" class="candbar" hidden></div>
+  <footer class="foot" id="foot"></footer>
+</div>
+<div id="print" class="print-only" aria-hidden="true"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="dlg" class="dlg" aria-labelledby="dlgTitle"></dialog>
+<noscript><p style="padding:24px;font-size:20px">자바스크립트를 켜야 쓸 수 있어요.</p></noscript>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
