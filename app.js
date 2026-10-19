@@ -1511,12 +1511,17 @@ async function origDraw() {
   let firstY = null;
   if (v.hit && v.hit.page === v.page) {
     ctx.fillStyle = 'rgba(255, 200, 0, .42)';
+    const rs = [];
     v.hit.items.forEach(i => {
       const it = P.items[i]; if (!it) return; const [x, y, w, h] = rectOf(it);
       const len = String(it.str || '').length || 1; const sp = v.hit.span && v.hit.span.get(i) || [0, len];
-      const x0 = x + w * (sp[0] / len), x1 = x + w * (sp[1] / len);
-      ctx.fillRect(x0 - 1, y, (x1 - x0) + 2, h); if (firstY === null || y < firstY) firstY = y;
+      rs.push([x + w * (sp[0] / len), y, x + w * (sp[1] / len), h]);
     });
+    // 같은 줄의 단어 조각은 사이 공백까지 이어 칠한다
+    rs.sort((a, b) => (Math.abs(a[1] - b[1]) < 3 ? a[0] - b[0] : a[1] - b[1]));
+    const merged = [];
+    rs.forEach(r => { const m = merged[merged.length - 1]; if (m && Math.abs(m[1] - r[1]) < 3 && r[0] - m[2] < r[3] * 1.6) { m[2] = Math.max(m[2], r[2]); m[3] = Math.max(m[3], r[3]); } else merged.push(r.slice()); });
+    merged.forEach(([x0, y, x1, h]) => { ctx.fillRect(x0 - 1, y, (x1 - x0) + 2, h); if (firstY === null || y < firstY) firstY = y; });
   }
   const pgl = $('#origPg'); if (pgl) pgl.textContent = v.page + ' / ' + ORIG.doc.numPages + '쪽';
   const mb = $('#origMaskBtn'); if (mb) { mb.setAttribute('aria-pressed', String(v.mask)); mb.textContent = v.mask ? '개인정보 가림 켜짐' : '개인정보 가림 꺼짐'; }
