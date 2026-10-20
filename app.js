@@ -770,9 +770,10 @@ function viewRecord() {
   let body = '';
   if (R.step === 1) body = recStep1(); else if (R.step === 2) body = recStep2(); else body = recStep3();
   // 3단계(결과)에서는 단계 바를 한 줄 진행 표시로 줄인다
-  const mini = R.step === 3 ? `<nav class="steps mini" aria-label="단계">${[[1, '올리기'], [2, '가리기'], [3, '결과']].map(([n, t]) => `<button class="${n === 3 ? 'on' : ''}" data-act="recStep" data-n="${n}" ${n === 3 ? 'aria-current="step"' : ''}>${n} ${t}</button>`).join('<span aria-hidden="true">›</span>')}</nav>` : '';
+  // 가리기는 자동. 단계는 '올리기 → 결과' 두 개만 보여 주고, 가린 내용 확인은 결과 화면의 선택 링크로
+  const mini = R.step >= 2 ? `<nav class="steps mini" aria-label="단계"><button data-act="recStep" data-n="1">1 올리기</button><span aria-hidden="true">›</span><button class="${R.step === 3 ? 'on' : ''}" data-act="recStep" data-n="3" ${R.step === 3 ? 'aria-current="step"' : ''}>2 결과</button><span class="spacer"></span><button data-act="recStep" data-n="2" class="${R.step === 2 ? 'on' : ''}">${ic('eye')}가린 내용 보기</button></nav>` : '';
   return vhead('mint', '내 학생부 살펴보기', R.demo ? '<span class="badge sun">가상 학생 · 실제 사람 아님</span>' : '원문은 이 기기 밖으로 나가지 않아요.') +
-    (mini || `<div class="steps">${st(1, '올리기')}${st(2, '가리기 확인')}${st(3, '결과 보기')}</div>`) + body;
+    (mini || `<div class="steps">${st(1, '올리기')}${st(3, '결과 보기')}</div>`) + body;
 }
 function recStep1() {
   return `<section class="panel mint">
@@ -787,20 +788,19 @@ function recStep1() {
     <div class="or">또는</div>
     <label class="f" for="rawText">글자 붙여넣기</label>
     <textarea id="rawText" data-in="raw" placeholder="학생부 내용을 복사해서 붙여넣어 주세요.">${esc(S.rec.raw)}</textarea>
-    <div class="row" style="margin-top:12px"><button class="btn demo" data-act="demo">가상 학생으로 둘러보기</button><span class="spacer"></span><button class="btn mint" data-act="toMask">다음: 개인정보 가리기 ${ic('next')}</button></div>
+    <div class="row" style="margin-top:12px"><button class="btn demo" data-act="demo">가상 학생으로 둘러보기</button><span class="spacer"></span><button class="btn mint" data-act="toMask">결과 보기 ${ic('next')}</button></div>
   </section>`;
 }
 function recStep2() {
   const R = S.rec, hits = Object.entries(R.hits);
   return `<section class="panel sun">
-    <h2>가려진 내용 확인</h2>
-    <p class="one">노란 칸이 가려졌어요. 빠진 이름이 있으면 아래에 적어 주세요.</p>
+    <h2>가린 내용 보기 <span class="badge">선택</span></h2>
+    <p class="one">인쇄·복사·저장할 때만 쓰여요. 빠진 이름이 있으면 적어 주세요.</p>
     <div class="hitchips">${hits.length ? hits.map(([k, v]) => `<span>${esc(k)} ${v}</span>`).join('') : '<span>자동으로 가린 곳 없음</span>'}</div>
     <div class="masked" tabindex="0" aria-label="가려진 학생부 미리보기">${markMasked(R.masked.slice(0, 20000))}${R.masked.length > 20000 ? '\n…(뒤는 생략해서 보여요)' : ''}</div>
     <label class="f" for="maskExtra">더 가릴 말 <span class="tiny">(친구·선생님 이름 등, 쉼표로)</span></label>
     <div class="row"><input id="maskExtra" type="text" value="${esc(R.extra)}" data-in="maskExtra" style="flex:1;min-width:200px"><button class="btn white" data-act="remask">다시 가리기</button></div>
-    <div class="stickbar okbar"><label class="confirm"><input type="checkbox" data-in="maskOk" ${R.confirmed ? 'checked' : ''}>이름·학교·번호가 다 가려진 걸 확인했어요</label>
-    <div class="row"><button class="btn white" data-act="recStep" data-n="1">${ic('back')} 다시 넣기</button><span class="spacer"></span><button class="btn mint" data-act="analyze" id="btnAnalyze" ${R.confirmed ? '' : 'disabled'}>결과 보기 ${ic('next')}</button></div></div>
+    <div class="row" style="margin-top:12px"><span class="spacer"></span><button class="btn mint" data-act="analyze" id="btnAnalyze">결과로 돌아가기 ${ic('next')}</button></div>
   </section>`;
 }
 function recStep3() {
@@ -1085,15 +1085,20 @@ IN.fitD = el => { const v = el.value.trim(); if (v && !$$('#fitDList option').so
 ACT.recStep = el => { S.rec.step = +el.dataset.n; render(); };
 ACT.recTab = el => { S.rec.tab = el.dataset.k; render(); };
 IN.raw = el => { S.rec.raw = el.value; S.rec.demo = false; };
+/* 올리면 바로 결과로: 가리기는 자동 적용(학생부는 기기 안에서만 처리), 확인은 선택 */
+function runRecord(msg) {
+  const R = S.rec; const m = maskText(R.raw, R.extra); R.masked = m.text; R.hits = m.hits; R.confirmed = true;
+  analyzeRecord(); R.step = 3; R.tab = R.tab || 'grade'; render(); toast(msg || '다 읽었어요.');
+}
 ACT.toMask = () => {
   const R = S.rec; const t = ($('#rawText') || {}).value ?? R.raw;
   if (t.replace(/\s/g, '').length < 30) { toast('학생부 내용을 먼저 넣어 주세요.'); return; }
-  R.raw = t; const m = maskText(R.raw, R.extra); R.masked = m.text; R.hits = m.hits; R.confirmed = false; R.analyzed = false; R.step = 2; render();
+  R.raw = t; R.tab = 'grade'; runRecord();
 };
 IN.maskExtra = el => { S.rec.extra = el.value; };
-ACT.remask = () => { const R = S.rec; const m = maskText(R.raw, R.extra); R.masked = m.text; R.hits = m.hits; R.confirmed = false; render(); toast('다시 가렸어요.'); };
-IN.maskOk = el => { S.rec.confirmed = el.checked; const b = $('#btnAnalyze'); if (b) b.disabled = !el.checked; };
-ACT.analyze = () => { if (!S.rec.confirmed) return; analyzeRecord(); S.rec.step = 3; S.rec.tab = 'grade'; render(); toast('다 읽었어요. 표가 맞는지 확인해 주세요.'); };
+ACT.remask = () => { const R = S.rec; const m = maskText(R.raw, R.extra); R.masked = m.text; R.hits = m.hits; R.confirmed = true; analyzeRecord(); render(); toast('다시 가렸어요.'); };
+IN.maskOk = () => {};
+ACT.analyze = () => { const R = S.rec; if (!R.analyzed) analyzeRecord(); R.confirmed = true; R.step = 3; R.tab = R.tab || 'grade'; render(); };
 
 /* PDF 읽기: pdf.js (인라인 or vendor) — 워커가 막히면 pdf.js가 메인 스레드로 대신 돈다 */
 let PDFJS = null;
@@ -1158,6 +1163,7 @@ IN.pdf = async el => {
     const ta = $('#rawText'); if (ta) ta.value = r.text;
     st.innerHTML = `<b>${esc(f.name)}</b> · ${r.pages}쪽 · ${chars.toLocaleString()}자 읽음`;
     el.value = '';
+    S.rec.tab = 'grade'; runRecord(`${r.pages}쪽을 다 읽었어요.`);
   } catch (e) {
     st.innerHTML = '<span class="badge rose">못 읽었어요</span> ' + esc(e && e.message ? e.message : String(e)) + ' 글자를 붙여넣어도 돼요.';
   }
@@ -2153,9 +2159,8 @@ const DEMO = `[가상 학생부 · 실제 사람 아님]
 [2학년]
 배려심이 깊고 모둠 활동에서 친구들과 소통하며 협업을 이끄는 학생임. 스스로 계획을 세워 학습하며 성적이 꾸준히 향상됨.`;
 ACT.demo = () => {
-  origReset(); const R = newRec(); R.raw = DEMO; R.demo = true; const m = maskText(DEMO, ''); R.masked = m.text; R.hits = m.hits; R.step = 2;
-  S.rec = R; go('record'); if (VIEW === 'record') render();
-  toast('가상 학생이에요. 가려진 곳을 확인해 보세요.');
+  origReset(); const R = newRec(); R.raw = DEMO; R.demo = true; R.tab = 'grade';
+  S.rec = R; go('record'); runRecord('가상 학생이에요. 실제 사람이 아니에요.');
 };
 
 /* 시작 */
