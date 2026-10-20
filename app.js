@@ -631,7 +631,11 @@ function analyzeRecord() {
   R.areas = splitAreas(text);
   const items = [];
   ['세특', '자율', '동아리', '진로', '봉사', '행특'].forEach(a => { if (R.areas[a]) items.push(...splitItems(a, R.areas[a])); });
-  R.items = items;
+  // 세특 뒤에 붙어 온 표 머리글·쪽 머리글('<체육·예술', '학기 교과 과목', '이수학점 합계')을 잘라 내고, 빈 기록은 뺀다
+  const JUNK = /<\s*(체육|교양)|학기\s*교과\s*과목|이수\s*학점\s*합계/;
+  const PGHEAD = /\[학교\]\s*\/\s*\[날짜\]\s*[\d:]*\s*\/\s*\[출력정보\]\s*|\/?\s*\d*\s*\[학교\]\s*\[날짜\]\s*\d*\s*\[학적\]\s*(?:성명\s*\[이름\])?/g;
+  for (let i = items.length - 1; i >= 0; i--) { const it = items[i]; it.내용 = String(it.내용).replace(PGHEAD, ' ').replace(/[ \t]{2,}/g, ' '); const m = it.내용.search(JUNK); if (m >= 0) it.내용 = it.내용.slice(0, m).trim(); if (it.내용.replace(/\s|해당\s*사항\s*없음/g, '').length < 20) items.splice(i, 1); }
+  R.items = items; R.chain = null; R.incomplete = null;
   let g = parseGrades(R.areas['교과성적'] || '');
   const g2 = parseGrades(text); if (g2.length > g.length) g = g2;
   // 줄이 나뉜 과목 이름('음악 감상과비평')은 세특 머리의 과목 이름('음악 감상과 비평')으로 맞춘다
@@ -681,6 +685,84 @@ function takenSets() {
   return { taken, gy };
 }
 
+/* ---- 02b-chain.js ---- */
+/* ===== 탐구 흐름: 학년을 이어 온 주제·끊긴 주제·새 주제, 계획으로 끝난 문장 (예전 Analyzer.gs 이식) ===== */
+// 불용어는 예전 앱이 실제 학생부 여러 건에서 걸러 낸 목록 그대로다
+const CH_STOP = new Set('자치활동 자율활동 동아리활동 진로활동 봉사활동 봉사시간 특기사항 세부능력 교과우수상 수상경력 수강자 학교장 담임 학적 인적 창의적체험 체험활동 봄예술제 체육대회 축제 정화 정돈 청소 교내 교외 행사 대회 캠프 특강 농구 축구 배구 야구 줄넘기 달리기 경기 종목 이어진다 구성 구조 연결 방식 전달 유지 조정 완성 기존 주변 판단 관리 인상 기능 현대 모든 정확하게 긍정적인 어려움 변화 상황 중요 필요 사용 적용 타인 단위 분위기 기준 방향 정도 수준 부분 측면 요소 조건 있음 없음 하였음 되었음 보임 통해 대해 위해 관련 활동 수업 시간 내용 모습 과정 결과 돋보였으며 인상적임 우수함 뛰어남 성실함 발표함 참여함 작성함 조사함 실시함 진행함 보여줌 드러냄 나타냄 임함 노력함 기울임 보완함 향상됨 성장함 자신 학생 친구 선생님 학교 학급 이후 특히 또한 다양한 여러 매우 가장 함께 직접 스스로 그리고 하지만 때문 경우 이때 이를 이러한 그러한 서로 먼저 계속 다시 아주 1학년 2학년 3학년 1학기 2학기 학년 학기 탐구 보고서 프로젝트 실험 조사 분석 발표 토론 독서 논문 자료 과제 활동지 수행평가 동아리 자율 진로 봉사 멘토링 캠페인 공모전 이해 생각 의견 질문 문제 방법 학습 설명 실제 관심 개념 주제 진행 수립 참여 확인 제시 제안 계획 역할 능력 태도 자세 경험 사례 목표 정보 지식 기술 분야 중심 통한 바탕 기반 전체 이상 이하 최고 최대 어떻게 무엇 왜곡 기본 배운 배움 익힌 알게 되는 하는 되는지 하는지 통하여 역량 과목 교과 학업 성취 평가 기록 과정에서 활동에서 수행 태도로 사용자 이용자 사람 우리 사회 문화 세계 현재 과거 미래 오늘 요즘 추천 강화 제작 확대 증가 감소 영향 문제점 필요성 중요성 읽고 단순 미치 맡아 급우 마다 대한 위한 따른 관한 날짜 번호 성명 학년도 쪽수 반번호 다양 있게 준비 도움 정리 작성 평소 반복 위치 활용 표현 발휘 관찰 사실 학생임 있다 없다 아니라 따라 되었다고 이라 다른 어떤 있도록 가지고 의미 방안 선택 강조 실천 소개 혜택 파악 특징 이유 발생 기여 제출 향상 일상 대처 가능성 노력 연습 발전 원리 소감 내용을 과정을 활동을 생각을 자신의 스스로의 이어지는 관계 있으며 있었음 있어 있고 돋보임 돋보이 나아 않고 생겨 생김 느낌 찾아 찾은 새로운 깨닫게 깨달음 해결 흥미 호기심 탐색 연구 심화 확장 연계 의지 열정 책임 배려 소통 협력 협업 리더 나눔 성실 규칙 준수 공감 조원 교사 모둠 동급생 선배 후배 인물 등장인물 설정 이용 아이디어 주장 작품 이야기 배경 기간 도서 영상 포스터 단원 기회 고려 도출 계산 사고 인식 관점 해석 사건 인간 생활 개인 자기 자신감 전반 기타 OOO 밝힘 고찰 비교 받음 탁월 핵심 어려운 마음 집중 ooo 이름 학교 날짜 학적 주소 가림 출력정보 학점 해당 사항 비고 이수학점 합계 이수여부 교양교 성취도 원점수 과목평균 수강자수 석차등급 등급 체육 운동 감상 미술 음악 예술 건강 비평 아닌 서술 성장 궁금 처음 실력 능력주 형태 꾸준히 알아보고자 형성 기획 개선 측정'.split(/\s+/));
+const CH_SUFFIX = /(하는지|되는지|하면서|하였음|하기로|이라고|으로써|로부터|에게서|에서의|하는|되는|하며|하고|하여|해서|하기|하지|되어|된|될|라고|으로|에서|에게|부터|까지|처럼|보다|만큼|께서|으로서|로서|들|을|를|이|가|은|는|의|에|와|과|로|도|만|한|할|함|했|해|됨)$/;
+function chKeywords(text, n) {
+  const freq = {};
+  String(text).replace(/\[[^\]]*\]/g, ' ').replace(/[^가-힣A-Za-z0-9\s]/g, ' ').split(/\s+/).forEach(t0 => {
+    let t = t0.replace(CH_SUFFIX, '').replace(CH_SUFFIX, '').replace(/(하|되|시키|스러)$/, '');
+    if (t.length < 2 || t.length > 12) return;
+    if (CH_STOP.has(t) || CH_STOP.has(t0)) return;
+    if (/(있|없|같|많|적|크|작|높|낮)$/.test(t) || /^[0-9]+$/.test(t)) return;
+    freq[t] = (freq[t] || 0) + 1;
+  });
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, n || 20);
+}
+function analyzeChain(items) {
+  const kw = {};
+  [1, 2, 3].forEach(g => { kw[g] = Object.fromEntries(chKeywords(items.filter(it => it.학년 === g).map(it => it.내용).join(' '), 60)); });
+  const 지속 = [], 단절 = [], 신규 = [];
+  Object.keys(kw[1]).forEach(w => { if (kw[2][w] || kw[3][w]) 지속.push(w); else if (kw[1][w] >= 2) 단절.push(w); });
+  Object.keys(kw[2]).forEach(w => { if (!kw[1][w]) { if (kw[3][w]) 지속.push(w); else 신규.push(w); } });
+  Object.keys(kw[3]).forEach(w => { if (!kw[1][w] && !kw[2][w]) 신규.push(w); });
+  const f = w => kw[3][w] || kw[2][w] || kw[1][w] || 0;
+  const top = (ws, k) => [...new Set(ws)].sort((a, b) => f(b) - f(a)).slice(0, k);
+  // 이어진 낱말이 나온 기록 짝: 학년 차가 큰 짝 먼저, 낱말마다 두 쌍, 같은 기록은 두 번까지
+  const 연결 = [], 쓴쌍 = {}, 쓴 = {};
+  top(지속, 10).forEach(w => {
+    const found = items.map((it, i) => ({ it, i })).filter(x => x.it.학년 && x.it.내용.includes(w));
+    const 짝 = [];
+    for (let a = 0; a < found.length; a++) for (let b = a + 1; b < found.length; b++) {
+      let p = found[a], q = found[b]; if (p.it.학년 === q.it.학년) continue; if (p.it.학년 > q.it.학년) [p, q] = [q, p];
+      짝.push({ 앞: p, 뒤: q, 차: q.it.학년 - p.it.학년 });
+    }
+    짝.sort((x, y) => y.차 - x.차);
+    let n = 0;
+    for (const p of 짝) {
+      if (연결.length >= 12 || n >= 2) break;
+      const key = p.앞.i + '>' + p.뒤.i; if (쓴쌍[key] || (쓴[p.앞.i] || 0) >= 2 || (쓴[p.뒤.i] || 0) >= 2) continue;
+      쓴쌍[key] = 1; 쓴[p.앞.i] = (쓴[p.앞.i] || 0) + 1; 쓴[p.뒤.i] = (쓴[p.뒤.i] || 0) + 1;
+      연결.push({ 키워드: w, 앞: p.앞.it, 뒤: p.뒤.it }); n++;
+    }
+  });
+  return { 지속: top(지속, 12), 단절: top(단절, 8), 신규: top(신규, 12), 연결 };
+}
+const CH_PLAN = /(계획함|계획을세움|계획하였음|하기로함|하기로하였음|해보기로함|해보기로하였음|해보고자함|해보고자하였음|탐구하고자함|탐구하고자하였음|알아보기로함|알아보기로하였음|조사해보기로|시도하려|후속탐구로남김)[.。]?$/;
+const CH_RESULT = /(결과|결론|확인함|확인하였|검증|도출|완성|산출|밝혀|밝힘|나타남|입증|성공|실패|측정|얻었|알게됨|알아냄|정리함|정리하여|증명|분석함|분석하여|고안|제작|설계|구현|규명|해결|개선|비교함|비교하여|적용함|적용하여|발표함|깨달|찾아냄|이끌어냄|만들어냄|끄집어)/;
+// 세특 하나는 활동 여러 개를 묶은 덩어리라 낱말 유무로 미완결을 가리지 않는다. 문장 하나가 계획으로 끊긴 경우만 센다
+function findIncomplete(items) {
+  const out = [], seen = {};
+  items.forEach((it, idx) => {
+    const ss = String(it.내용).split(/(?<=[.。])\s+/);
+    for (let i = 0; i < ss.length; i++) {
+      const s = ss[i].trim(); if (s.length < 15) continue;
+      if (CH_PLAN.test(s.replace(/\s/g, '')) && !CH_RESULT.test(ss.slice(i + 1).join(' ').replace(/\s/g, '')) && !seen[idx]) { seen[idx] = 1; out.push({ it, 문장: s }); }
+    }
+  });
+  return out;
+}
+function chainHTML() {
+  const R = S.rec; if (!R.chain) { R.chain = analyzeChain(R.items || []); R.incomplete = findIncomplete(R.items || []); }
+  const C = R.chain, grades = new Set((R.items || []).map(i => i.학년).filter(Boolean));
+  const chips = (ws, cls) => ws.length ? `<div class="hitchips">${ws.map(w => `<span class="${cls}">${esc(w)}</span>`).join('')}</div>` : '<p class="tiny">없음</p>';
+  const where = it => [it.학년 ? it.학년 + '학년' : '', AREA_NAME[it.영역] || it.영역, it.과목].filter(Boolean).join(' · ');
+  const sentOf = (it, w) => { const s = sentences(it.내용).find(x => x.includes(w)) || ''; return s; };
+  const pairs = C.연결.map((x, i) => { const a = sentOf(x.앞, x.키워드), b = sentOf(x.뒤, x.키워드);
+    return `<div class="ev"><span class="where"><b>'${esc(x.키워드)}'</b> ${esc(where(x.앞))} → ${esc(where(x.뒤))}</span>
+      <p style="margin:4px 0">${hlSent(a, [x.키워드])}${a ? ` <button class="origbtn" data-act="origShow" data-s="${esc(a)}">${ic('eye')}원본</button>` : ''}</p>
+      <p style="margin:4px 0">→ ${hlSent(b, [x.키워드])}${b ? ` <button class="origbtn" data-act="origShow" data-s="${esc(b)}">${ic('eye')}원본</button>` : ''}</p></div>`; }).join('');
+  const inc = (R.incomplete || []).map(o => `<div class="ev"><span class="where">${esc(where(o.it))}<button class="origbtn" data-act="origShow" data-s="${esc(o.문장)}">${ic('eye')}원본</button></span>${esc(o.문장)}<p class="tiny" style="margin:4px 0 0">계획으로 끝나고 결과 문장이 없어요. 이어서 해 볼 탐구 후보예요.</p></div>`).join('');
+  return `<section class="panel vio"><h2>${ic('list')} 탐구 흐름</h2><p class="one">학년을 넘어 이어진 주제와 새로 나온 주제예요. 낱말로 센 거라 참고로 보세요.</p>
+    ${grades.size < 2 ? '<div class="note">한 학년 기록만 있어서 이어짐은 아직 볼 수 없어요.</div>' : ''}
+    <div class="grid2"><div><h3>학년을 이어 온 주제</h3>${chips(C.지속, 'on')}</div><div><h3>새로 나온 주제</h3>${chips(C.신규, '')}</div></div>
+    ${C.단절.length ? `<h3>1학년에만 있고 끊긴 주제</h3>${chips(C.단절, '')}` : ''}
+    ${pairs ? `<details class="fold" data-fold="chpairs"${fo('chpairs', true)}><summary><span class="sumt"><b>이어진 기록 짝</b><span class="pv">${C.연결.length}쌍 · 면접에서 "어떻게 이어졌나" 질문이 나오기 좋은 곳</span></span></summary><div class="fb">${pairs}</div></details>` : ''}
+    <details class="fold" data-fold="chinc"${fo('chinc')}><summary><span class="sumt"><b>이어갈 탐구</b><span class="pv">${(R.incomplete || []).length}곳 · 계획으로 끝난 문장</span></span><span class="cnt ${(R.incomplete || []).length ? '' : 'zero'}">${(R.incomplete || []).length}</span></summary><div class="fb">${inc || '<p class="muted" style="margin:0">계획으로만 끝난 문장은 없어요.</p>'}</div></details>
+  </section>`;
+}
 /* ---- 03-home-record.js ---- */
 /* ===== 상단·홈·내 정보·학생부 화면 ===== */
 const ACT = {}, IN = {};
@@ -821,11 +903,12 @@ function recStep3() {
   const R = S.rec, tab = R.tab;
   const t = (k, icn, label) => `<button class="tab mint ${tab === k ? 'on' : ''}" data-act="recTab" data-k="${k}" aria-pressed="${tab === k}">${ic(icn)}${label}</button>`;
   let inner = '';
-  if (tab === 'grade') inner = recGrade(); else if (tab === 'ev') inner = recEvidence(); else if (tab === 'check') inner = '<div id="checkBox">불러오는 중…</div>'; else if (tab === 'ipg') inner = '<div id="ipgBox">불러오는 중…</div>'; else inner = '<div id="fitBox">불러오는 중…</div>';
-  return `<div class="tabs stick" role="group" aria-label="결과 보기" style="--n:5">${t('grade', 'chart', '성적')}${t('ipg', 'compass', '입결 비교')}${t('ev', 'search', '기록 근거')}${t('check', 'pen', '스스로 점검')}${t('fit', 'book', '권장과목')}</div>${inner}
+  if (tab === 'grade') inner = recGrade(); else if (tab === 'ev') inner = recEvidence(); else if (tab === 'check') inner = '<div id="checkBox">불러오는 중…</div>'; else if (tab === 'ipg') inner = '<div id="ipgBox">불러오는 중…</div>'; else inner = '<div id="fitBox">불러오는 중…</div><div id="pathBox"></div>';
+  return `<div class="tabs stick" role="group" aria-label="결과 보기" style="--n:5">${t('grade', 'chart', '성적')}${t('ipg', 'compass', '입결 비교')}${t('ev', 'search', '기록 근거')}${t('check', 'pen', '스스로 점검')}${t('fit', 'book', '과목·학과')}</div>${inner}
   <section class="panel navy"><div class="row">
     <button class="btn" data-act="printSum">${ic('print')} 상담 요약 1장</button>
     <button class="btn white" data-act="saveDlg">${ic('lock')} 암호 파일로 저장</button>
+    <button class="btn vio" data-act="aiPrompt">${ic('star')} AI 분석 프롬프트 복사</button>
     <span class="spacer"></span><button class="btn danger" data-act="wipe">${ic('trash')} 다 지우기</button></div>
     <p class="tiny" style="margin:8px 0 0">지금은 이 탭의 메모리에만 있어요. 탭을 닫으면 사라져요.</p></section>`;
 }
@@ -994,7 +1077,8 @@ function recEvidence() {
   const ci = comps.findIndex(c => c[0] === tab);
   const total = list => list.reduce((s, k) => s + (ev[k] || []).length, 0);
   const areaCount = ['세특', '자율', '동아리', '진로', '봉사', '행특'].map(a => { const n = R.items.filter(i => i.영역 === a).length; return n ? `${AREA_NAME[a].replace('활동', '')} ${n}` : ''; }).filter(Boolean).join(' · ');
-  const tabs = comps.map(([c, list], i) => `<button class="tab ${COL[i]} ${c === tab ? 'on' : ''}" data-act="evTab" data-k="${esc(c)}" aria-pressed="${c === tab}">${esc(c.replace('역량', ''))} <span class="n">${total(list)}</span></button>`).join('');
+  const flow = R.evTab === '흐름';
+  const tabs = comps.map(([c, list], i) => `<button class="tab ${COL[i]} ${c === tab && !flow ? 'on' : ''}" data-act="evTab" data-k="${esc(c)}" aria-pressed="${c === tab && !flow}">${esc(c.replace('역량', ''))} <span class="n">${total(list)}</span></button>`).join('') + `<button class="tab vio ${flow ? 'on' : ''}" data-act="evTab" data-k="흐름" aria-pressed="${flow}">탐구 흐름</button>`;
   const cards = comps[ci][1].map(k => {
     const arr = ev[k] || [], key = 'ev|' + k;
     // 학업성취도는 문장보다 성적표가 먼저다
@@ -1008,7 +1092,7 @@ function recEvidence() {
   return `<section class="panel mint"><h2>${ic('search')} 기록 근거</h2><p class="one">평가 항목별로 내 학생부 문장을 모았어요. 점수는 매기지 않아요.</p>
     <div class="row" style="margin-bottom:6px">${areaCount ? `<span class="statline">찾은 기록: ${esc(areaCount)}</span>` : '<span class="badge rose">영역을 못 나눴어요</span>'}<span class="spacer"></span>${ORIG ? `<button class="btn small white" data-act="origShow" data-s="">${ic('eye')} 원본 PDF 펼치기</button>` : ''}</div>
     <div class="tabs seg2" role="group" aria-label="역량 고르기" style="margin-top:10px">${tabs}</div>
-    <div class="comp c${ci + 1}">${cards}</div>
+    ${flow ? '</section>' + chainHTML() + '<section hidden>' : `<div class="comp c${ci + 1}">${cards}</div>`}
     ${(R.majorWords || []).length && ci === 1 ? `<p class="tiny">전공(계열) 항목은 희망 분야 낱말 <b>${esc(R.majorWords.join(', '))}</b>이 나오는 세특 문장으로 찾았어요. 성취도 항목은 그중 성취도 A·상위 등급 과목만이에요.</p>` : ''}</section>`;
 }
 ACT.evTab = el => { S.rec.evTab = el.dataset.k; render(); };
@@ -1187,6 +1271,45 @@ IN.pdf = async el => {
   }
 };
 
+/* AI 분석 프롬프트: 앱은 AI를 부르지 않는다. 가린 글만 담아 학생이 직접 붙여 넣게 한다 */
+ACT.aiPrompt = async () => {
+  const R = S.rec; if (!R.analyzed) return;
+  await need(['루브릭', '체크포인트']);
+  const uni = (S.cands[0] && uniBase(S.cands[0].univ)) || '';
+  const rub = DS['루브릭'].map(r => `- ${r.역량} > ${r.세부항목}: ${r.표준정의}`).join('\n');
+  const cps = uni ? DS['체크포인트'].filter(r => sameUni(r.대학, uni)).slice(0, 14).map(r => `- [${r.세부항목}] ${r.체크포인트}`).join('\n') : '';
+  const w = wavg(R.grades); const C = R.chain || analyzeChain(R.items || []), inc = R.incomplete || findIncomplete(R.items || []);
+  const ev = Object.entries(R.evidence || {}).map(([k, v]) => `${k} ${v.length}문장`).join(', ');
+  const p = `너는 고등학교 진로진학 상담을 돕는 조력자야. 아래 학생부(개인정보는 [이름]처럼 가려져 있음)를 읽고 학생 스스로 생각하게 돕는 피드백을 줘.
+
+규칙
+1. 학생부에 실제로 있는 문장만 근거로 써. 근거마다 원문 문장을 짧게 따옴표로 인용해.
+2. 없는 활동·수상·성적을 지어내지 마. 모르면 "기록에서 확인 안 됨"이라고 써.
+3. 점수, 등급, 합격 가능성은 말하지 마.
+4. 정답을 먼저 주지 말고, 학생이 스스로 답해 볼 질문을 항목마다 1~2개 줘.
+
+할 일
+1. 아래 평가 항목별로 강점 1~2개와 근거 문장
+2. 기록이 더 있으면 좋을 점 (부정적 단정 없이 "이렇게 이어 가면 좋겠다"로)
+3. 학년을 이어 온 주제가 실제로 깊어졌는지, 다음 학기에 이어 볼 탐구 2개
+4. 면접에서 나올 만한 질문 5개
+
+평가 항목 (학생부종합 공통 기준)
+${rub}
+${cps ? `\n${uni} 체크포인트 (일부)\n${cps}\n` : ''}
+앱이 미리 센 것 (참고)
+- 교육과정 ${R.system === 5 ? '2022 개정(5등급제)' : '2015 개정(9등급제)'}${w ? `, 등급 과목 학점 가중 평균 ${fmt(w.avg)}` : ''}
+- 희망 분야 낱말: ${(typeof ipgWords === 'function' ? ipgWords() : (R.majorWords || [])).join(', ') || '없음'}${S.cands.length ? `\n- 담은 후보: ${S.cands.map(c => uniBase(c.univ) + ' ' + c.unit + '(' + c.전형 + ')').join(', ')}` : ''}
+- 항목별 찾은 문장 수: ${ev}
+- 학년을 이어 온 주제: ${C.지속.join(', ') || '없음'} / 새 주제: ${C.신규.slice(0, 8).join(', ') || '없음'}
+- 계획으로 끝난 문장: ${inc.length}곳
+
+학생부 (가린 글)
+"""
+${String(R.masked || '').slice(0, 60000)}
+"""`;
+  copyText(p);
+};
 /* ---- 04-major.js ---- */
 /* ===== ② 학과·전형 찾기 ===== */
 const MJ_DATA = ['학과사전', '모집2028', '최저2028', '면접기준', '전형결과', '공식입결', '2028출처'];
@@ -1576,17 +1699,30 @@ async function fillIpg() {
   const trs = near.slice(0, lim).map(o => { const d = o.c - my.avg;
     return `<tr><td><b>${esc(o.u)}</b><br><span class="tiny">${esc(o.unit)}</span></td><td>${esc(o.tr)}${o.rural ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(o.y)}학년도</span></td>
       <td class="n"><b>${fmt(o.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(o.c)}</span>` : ''}<br><span class="tiny">${esc(o.crit)}</span></td>
-      <td class="n">${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
+      <td class="n">${Math.abs(d) < 0.005 ? '0.00' : (d > 0 ? '+' : '−') + fmt(Math.abs(d))}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
   // 3) 우리 학교 선배 사례(선생님이 이 기기에 불러온 경우만)
   const cases = (S.teacher.cases || []).filter(c => words.length && hasW(c.학과));
   const csNear = my ? cases.filter(c => { const v = Number(c.성적); if (!isFinite(v) || !c.성적) return false; const cv = five && /9/.test(c.성적체계 || '9') ? gradeMean9(v) : v; return cv != null && Math.abs(cv - my.avg) <= 0.8; }) : [];
   const caseHTML = S.teacher.cases && S.teacher.cases.length ? `<h3>우리 학교 선배 사례 <span class="badge vio">이 기기에만 있음</span></h3>
     ${csNear.length ? `<div class="tbl-wrap"><table><thead><tr><th>대학·학과</th><th>전형</th><th class="n">내신</th><th>결과</th></tr></thead><tbody>${csNear.slice(0, 30).map(c => `<tr><td><b>${esc(c.대학)}</b><br><span class="tiny">${esc(c.학과)}</span></td><td>${esc(c.전형)}<br><span class="tiny">${esc(c.학년도)}</span></td><td class="n">${esc(c.성적)}</td><td>${esc(c.결과)}${c.비식별메모 ? `<br><span class="tiny">${esc(c.비식별메모)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="tiny">이 학과 낱말로 내 평균 근처(±0.8) 선배 사례가 없어요.</p>'}` : '';
-  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
+  // 0) 내가 담은 후보: 후보마다 같은 전형 입결 한 줄
+  const candRows = my ? (S.cands || []).map(cd => {
+    const keys = [...new Set([...unitKeys(cd.unit, cd.key), ...(cd.keys || [])])];
+    const off = officialFor(cd.univ, keys), sh = sheetResults(cd.univ, keys);
+    const offT = off.filter(r => sameTrack(r.전형명 || '', cd.전형)), shT = sh.filter(r => sameTrack(r.전형, cd.전형));
+    let pick = null;
+    const po = ipgPick(offT.length ? offT : []);
+    if (po) pick = { v: Number(po.성적값), crit: po.성적기준, y: po.학년도, src: /어디가/.test(po.출처유형) ? '어디가' : '대학 발표', same: true };
+    else { const r = shT[0]; const y = r && ['26', '25', '24'].find(y => String(r[y + '성적1'] || '').trim() !== '' && isFinite(Number(r[y + '성적1']))); if (y) pick = { v: Number(r[y + '성적1']), crit: r.기준1, y: '20' + y, src: '정리본', same: true }; }
+    if (!pick) { const p2 = ipgPick(off); if (p2) pick = { v: Number(p2.성적값), crit: p2.성적기준, y: p2.학년도, src: (/어디가/.test(p2.출처유형) ? '어디가' : '대학 발표'), same: false, tr: p2.전형명 }; }
+    return { cd, pick };
+  }) : [];
+  const candHTML = candRows.length ? `<h3>내가 담은 후보 ${candRows.length}곳</h3><div class="tbl-wrap"><table><thead><tr><th>후보</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th></tr></thead><tbody>${candRows.map(({ cd, pick }) => { const cv = pick ? (five ? gradeMean9(pick.v) : pick.v) : null; const d = cv != null ? cv - my.avg : null;
+    return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td><td class="n">${pick ? `<b>${fmt(pick.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(cv)}</span>` : ''}<br><span class="tiny">${esc(pick.crit || '')} · ${esc(pick.y)} · ${esc(pick.src)}${pick.same ? '' : ' · 다른 전형(' + esc(pick.tr || '') + ')'}</span>` : '<span class="badge">입결 없음</span>'}</td><td class="n">${d == null ? '-' : `<b>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</b>`}</td></tr>`; }).join('')}</tbody></table></div>` : (my ? '<p class="tiny">학과·전형 화면에서 후보를 담으면 여기서 내 평균과 나란히 볼 수 있어요.</p>' : '');  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
     ${my ? `<p class="one">내 평균 <b>${fmt(my.avg)}</b> (${my.sys}등급제) 근처(±0.8) 입결만 모았어요.</p>` : '<div class="note">성적표가 있어야 비교할 수 있어요. 성적 탭에서 확인해 주세요.</div>'}
     <label class="f" for="ipgQ">학과 낱말 <span class="tiny">(희망분야에서 자동, 쉼표로 고칠 수 있어요)</span></label>
     <div class="row"><input id="ipgQ" type="text" value="${esc(words.join(', '))}" style="flex:1;min-width:200px" placeholder="예: 간호, 기계, 교육"><button class="btn vio" data-act="ipgGo">다시 찾기</button></div>
-    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}
+    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
     ${my && words.length ? (trs ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>대학·모집단위</th><th>전형</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th><th>출처</th></tr></thead><tbody>${trs}</tbody></table></div>
       ${near.length > lim ? `<button class="btn white small" data-act="ipgMore" style="margin-top:8px">더 보기 (${near.length - lim})</button>` : ''}` : '<div class="empty"><strong>근처 입결을 못 찾았어요</strong>학과 낱말을 바꿔 보세요.</div>') : ''}
     <p class="tiny" style="margin-top:8px">차이 −는 입결 숫자가 내 평균보다 작다는 뜻이에요(더 높은 등급). 기준(50%·70%·평균)과 전형마다 반영 방식이 달라서 참고로만 보세요.</p>
@@ -1980,6 +2116,7 @@ const onlyCh = s => String(s || '').replace(/[\s\u00a0]/g, '');
 function origReset() {
   if (ORIG && ORIG.doc) { try { ORIG.doc.destroy(); } catch (e) { /* 무시 */ } }
   ORIG = null;
+  const sd = document.getElementById('origSide'); if (sd) { sd.hidden = true; sd.innerHTML = ''; } document.body.classList.remove('withorig');
 }
 function origKeep(doc, pagesItems, name) {
   origReset();
@@ -2049,7 +2186,33 @@ function origMaskTerms() {
   const extras = String(S.rec.extra || '').split(/[,\n]/).map(s => s.trim()).filter(s => s.length >= 2);
   const out = new Set();
   [...names, ...extras].forEach(n => { out.add(n); if (n.length >= 3) out.add(n.slice(1)); });
+  // 1쪽 학적 표 담임 이름('1 1 32 이재익')
+  for (const m of raw.matchAll(/(?:^|\n)[ \t]*[1-3][ \t]+(?:\d{1,2}[ \t]+){1,2}\d{1,3}[ \t]+([가-힣]{2,4})[ \t]*(?=\n|$)/g)) out.add(m[1]);
   return [...out].filter(t => t.length >= 2);
+}
+/* '주소 :' 다음에 이어지는 주소 줄(1~3줄). 1쪽 조각이 이 줄 안에 들어 있으면 가린다 */
+function origAddrLines() {
+  const raw = S.rec.raw || '', m = raw.match(/주[ \t]*소[ \t]*[:：][^\n]*((?:\n(?![ \t]*(?:학적|특기|학년|성명|성별|\d\.))[^\n]*){0,3})/);
+  if (!m) return [];
+  const first = (raw.match(/주[ \t]*소[ \t]*[:：]([^\n]*)/) || [])[1] || '';
+  return [first, ...m[1].split('\n')].map(s => s.trim()).filter(s => s.length >= 6 && /[가-힣]+(?:도|시|군|구|읍|면|동|로|길|리)(?![가-힣])|\d+\s*(?:동|호)/.test(s));
+}
+/* 사진 같은 그림 자리: 그리기 명령에서 그림이 놓인 네모를 계산한다 */
+async function origImageRects(pg, vp) {
+  const U = PDFJS.m.Util, OPS = PDFJS.m.OPS, ol = await pg.getOperatorList();
+  let ctm = [1, 0, 0, 1, 0, 0]; const st = [], out = [];
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    const fn = ol.fnArray[i], a = ol.argsArray[i];
+    if (fn === OPS.save) st.push(ctm.slice());
+    else if (fn === OPS.restore) ctm = st.pop() || [1, 0, 0, 1, 0, 0];
+    else if (fn === OPS.transform) ctm = U.transform(ctm, a);
+    else if (fn === OPS.paintImageXObject || fn === OPS.paintInlineImageXObject || fn === OPS.paintImageXObjectRepeat || fn === OPS.paintJpegXObject) {
+      const m = U.transform(vp.transform, ctm);
+      const xs = [m[4], m[4] + m[0], m[4] + m[2], m[4] + m[0] + m[2]], ys = [m[5], m[5] + m[1], m[5] + m[3], m[5] + m[1] + m[3]];
+      out.push([Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)]);
+    }
+  }
+  return out;
 }
 async function origDraw() {
   if (!ORIG) return;
@@ -2067,11 +2230,13 @@ async function origDraw() {
   const U = PDFJS.m.Util;
   const rectOf = it => { const tr = U.transform(vp.transform, it.transform); const fh = Math.hypot(tr[2], tr[3]) || 10 * vp.scale; return [tr[4], tr[5] - fh, (it.width || 0) * vp.scale, fh * 1.18]; };
   if (v.mask) {
-    const terms = origMaskTerms(), cls = origClassRows(P);
+    const terms = origMaskTerms(), cls = origClassRows(P), addr = v.page === 1 ? origAddrLines() : [];
     ctx.fillStyle = '#172C49';
+    try { (await origImageRects(pg, vp)).forEach(([x, y, w, h]) => { if (w > 8 && h > 8) ctx.fillRect(x, y, w, h); }); } catch (e) { /* 그림 자리 못 찾으면 넘어감 */ }
     P.items.forEach((it, ii) => {
       const s = it.str || ''; if (!s.trim()) return;
-      const hit = cls.has(ii) || maskText(s, S.rec.extra).text !== s || terms.some(t => s.includes(t));
+      const t2 = s.trim();
+      const hit = cls.has(ii) || maskText(s, S.rec.extra).text !== s || terms.some(t => s.includes(t)) || (t2.length >= 2 && addr.some(l => l.includes(t2)) && !/^(주소|:)$/.test(t2));
       if (hit) { const [x, y, w, h] = rectOf(it); ctx.fillRect(x - 2, y - 2, w + 4, h + 4); }
     });
   }
@@ -2110,7 +2275,8 @@ ACT.origShow = async el => {
   if (ORIG) {
     const hit = sent ? origFind(sent) : null;
     ORIG.view.hit = hit; ORIG.view.page = hit ? hit.page : (ORIG.view.page || 1); ORIG.view.zoom = 1;
-    openDialog('원본에서 보기', `
+    const sideOK = window.matchMedia('(min-width: 1100px)').matches;
+    const html = `
       <div class="origbar">
         <button class="btn small white" data-act="origPage" data-d="-1" aria-label="이전 쪽">${ic('back')}</button>
         <b id="origPg">…</b>
@@ -2122,8 +2288,8 @@ ACT.origShow = async el => {
       </div>
       <p class="tiny"><span id="origNote">${sent ? (hit ? `<b>${hit.page}쪽</b> 노란 칸이 이 문장이에요.` : '원본에서 정확한 위치를 못 찾았어요. 쪽을 넘겨 확인해 주세요.') : esc(ORIG.name || '')}</span> · 이 화면 밖으로 나가지 않아요.</p>
       <div class="origwrap" id="origWrap"><canvas id="origCv" aria-label="학생부 원본 쪽"></canvas></div>
-      ${sent ? `<div class="ev" style="margin-top:10px">${esc(sent)}</div>` : ''}`);
-    $('#dlg').classList.add('wide');
+      ${sent ? `<div class="ev" style="margin-top:10px">${esc(sent)}</div>` : ''}`;
+    if (sideOK) origSideOpen(html); else { openDialog('원본에서 보기', html); $('#dlg').classList.add('wide'); }
     try { await origDraw(); } catch (e) { const w = $('#origWrap'); if (w) w.innerHTML = '<p class="muted" style="padding:12px">원본을 그리지 못했어요. ' + esc(e.message || String(e)) + '</p>'; }
   } else {
     openDialog('원문에서 보기', `<p class="tiny">붙여넣은 글에서 찾은 위치예요. PDF로 올리면 원본 쪽에서 바로 보여 줘요.</p>${origTextView(sent)}`);
@@ -2135,11 +2301,20 @@ ACT.origPage = async el => { if (!ORIG) return; const n = ORIG.doc.numPages; ORI
 ACT.origZoom = async el => { if (!ORIG) return; ORIG.view.zoom = Math.min(2.5, Math.max(0.6, ORIG.view.zoom + (+el.dataset.d) * 0.25)); await origDraw(); };
 ACT.origMask = async () => { if (!ORIG) return; ORIG.view.mask = !ORIG.view.mask; await origDraw(); };
 
+/* 넓은 화면: 원본을 오른쪽에 붙박이로 띄워 두고 기록 근거를 보면서 넘긴다(예전 앱 방식) */
+function origSideOpen(html) {
+  let sd = document.getElementById('origSide');
+  if (!sd) { sd = document.createElement('aside'); sd.id = 'origSide'; sd.className = 'origside'; sd.setAttribute('aria-label', '학생부 원본'); document.body.appendChild(sd); }
+  sd.innerHTML = `<div class="origsidehd"><b>${ic('file')} 원본 PDF</b><span class="spacer"></span><button class="btn small white" data-act="origSideClose" aria-label="원본 닫기">${ic('close')} 닫기</button></div><div class="origsidebd">${html}</div>`;
+  sd.hidden = false; document.body.classList.add('withorig');
+  const d = $('#dlg'); if (d && d.open) { d.classList.remove('wide'); d.close(); }
+}
+ACT.origSideClose = () => { const sd = document.getElementById('origSide'); if (sd) { sd.hidden = true; sd.innerHTML = ''; } document.body.classList.remove('withorig'); };
 /* ---- 09-main.js ---- */
 /* ===== 화면 전환 · 이벤트 · 가상 학생 ===== */
 let VIEW = 'home';
 const VIEWS = {
-  home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') fillFit(); if (S.rec.tab === 'ipg') fillIpg(); } }],
+  home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') { fillFit(); if (typeof fillPath === 'function') fillPath(); } if (S.rec.tab === 'ipg') fillIpg(); } }],
   major: [viewMajor, fillMajor], compare: [viewCompare, fillCompare], rural: [viewRural, fillRural],
   interview: [viewInterview, fillInterview], teacher: [viewTeacher]
 };
@@ -2266,3 +2441,287 @@ ACT.demo = () => {
   render();
   if (!window.JN_DATA) toast('자료 파일(data.js)을 못 불러왔어요.');
 })();
+
+/* ---- 10-path.js ---- */
+/* ===== 학과 추천 (예전 GAS Path.gs findFits / explorePath / pathAdvice 이식) =====
+   들은 과목이 대학 권장과목과 얼마나 겹치는지만 센다. AI·네트워크 호출 없음.
+   예전 코드에서 지킨 약속:
+   - 지망에 가산점을 얹지 않는다. 지망은 따로 세워 같은 자로 잰 숫자를 보여 준다.
+   - 화면의 겹침 %는 성적·학과 이름을 섞지 않은 값이다(순서에만 성적 강약·희망 낱말이 들어간다).
+   - 적성·흥미·합격 가능성은 이 숫자에 없다.
+   - 대학 기준과 학과사전(커리어넷) 기준은 목록 길이가 달라 한 표에서 줄 세우지 않는다. */
+
+/* 이름 줄이기: 같은 학과를 한 줄로 묶을 때 (예전 normKey_) */
+function pathKey(s) {
+  let k = nsp(String(s || '').replace(/<[^>]*>/g, '')).replace(/\(.*?\)|\[.*?\]/g, '').replace(/[·\/]/g, '');
+  for (let i = 0; i < 2; i++) { const k2 = k.replace(/(학과군|학부|학과|전공|계열|과정|과|부)$/, ''); if (k2 === k || k2.length < 2) break; k = k2; }
+  return k || nsp(s);
+}
+const pathGy = s => { const t = nsp(s).replace(/\(.*$/, ''); return /^기술/.test(t) ? '기술가정정보' : t; };
+const PATH_GYO = new Set(['국어', '수학', '영어', '사회', '과학', '한국사', '정보', '체육', '예술', '기술가정정보']);
+
+/* 색인: 데이터는 바뀌지 않으므로 한 번만 만든다 */
+let PATH_IX = null;
+async function pathIndex() {
+  if (PATH_IX) return PATH_IX;
+  await need(['학과별권장과목', '권장과목', '학과사전', '과목안내']);
+  const known = new Set(), tokGy = {}, show = {};
+  DS['과목안내'].forEach(r => { const k = subjNorm(r.과목명); if (!k) return; known.add(k); tokGy[k] = pathGy(r.교과); show[k] = String(r.과목명).trim(); });
+  ONLY_2015.forEach(n => known.add(subjNorm(n)));
+  EQUIV.forEach(g => g.forEach(n => known.add(subjNorm(n))));
+  const keep = list => { const out = [], seen = new Set(); list.forEach(t => { const k = subjNorm(t); if (!k || seen.has(k)) return; if (!known.has(k) && !(k in GYOGWA_WORDS)) return; seen.add(k); out.push(show[k] || t); }); return out; };
+  const build = units => { const df = {}; units.forEach(u => { new Set([...u.core, ...u.rec].map(subjNorm)).forEach(k => (df[k] = (df[k] || 0) + 1)); }); return { units, df, N: units.length }; };
+  // 대학 기준: 학과별권장과목 + 권장과목(겹치면 앞의 것)
+  const uni = [], seenU = new Set();
+  [DS['학과별권장과목'], DS['권장과목']].forEach(rows => rows.forEach(r => {
+    const id = uniBase(r.대학) + '|' + nsp(r.모집단위); if (seenU.has(id)) return;
+    const core = keep(splitSubjects(r.핵심권장과목)), rec = keep(splitSubjects(r.권장과목)).filter(t => !core.includes(t));
+    if (!core.length && !rec.length) return; seenU.add(id);
+    uni.push({ univ: r.대학, unit: r.모집단위, key: pathKey(r.모집단위), core, rec });
+  }));
+  // 학과사전(커리어넷): 진로선택 = 핵심, 일반·융합선택 = 권장. 교양○○학부는 계열 묶음이라 뺀다
+  const net = [], word = {};
+  DS['학과사전'].forEach(r => {
+    const nm = String(r.학과명 || '').trim(); if (!nm) return;
+    String(r.낱말 || '').split(/\s+/).forEach(w => { if (!w) return; (word[w] = word[w] || []); if (word[w].length < 10) word[w].push(nm); });
+    if (/^교양/.test(nm)) return;
+    const core = keep(splitSubjects(r.진로선택)), rec = keep([...splitSubjects(r.일반선택), ...splitSubjects(r.융합선택)]).filter(t => !core.includes(t));
+    if (!core.length && !rec.length) return;
+    net.push({ name: nm, field: r.계열 || '', key: pathKey(nm), core, rec });
+  });
+  PATH_IX = { uni: build(uni), net: build(net), known, tokGy, word };
+  return PATH_IX;
+}
+
+/* 기록에 적힌 희망 분야 (학년별) — 예전 희망분야_ */
+const PATH_HOPE_STOP = /^(희망|없음|미정|학년|학기|영역|시간|봉사|활동|특기사항|일자|기간|장소|내용|진로|진로활동|해당|사항)$/;
+function pathHope() {
+  const by = {};
+  (S.rec.items || []).filter(it => it.영역 === '진로').forEach(it => {
+    const m = String(it.내용 || '').match(/희망\s*분야\s*[:：]?\s*([^\n]{1,40})/); if (!m) return;
+    const g = Number(it.학년) || 0, out = (by[g] = by[g] || []);
+    const toks = m[1].trim().split(/\s+/);
+    for (let i = 0; i < toks.length && i < 6; i++) {
+      const raw = toks[i], more = /[,·\/]$/.test(raw);
+      raw.split(/[,·\/]/).forEach(x => { x = x.replace(/[.'"()]/g, '').replace(/(계열|분야|쪽)$/, '').trim(); if (x.length >= 2 && x.length <= 10 && /^[가-힣A-Za-z]+$/.test(x) && !PATH_HOPE_STOP.test(x) && !out.includes(x)) out.push(x); });
+      if (!more && !/^(계열|분야)$/.test(toks[i + 1] || '')) break;
+    }
+  });
+  const rows = Object.keys(by).map(Number).sort().map(g => ({ g, f: by[g] })).filter(r => r.f.length);
+  let all = [...new Set(rows.flatMap(r => r.f))];
+  if (!all.length) all = (S.rec.majorWords || []).filter(w => !PATH_HOPE_STOP.test(w));
+  // 희망분야 줄이 없으면 진로활동·세특에 자주 나온 학과 낱말로 짐작한다(입결 비교 탭과 같은 규칙)
+  let guessed = false;
+  if (!all.length && typeof ipgWords === 'function') { const R = S.rec, keep = R.ipgQ; R.ipgQ = null; all = ipgWords().filter(w => !PATH_HOPE_STOP.test(w)); R.ipgQ = keep; guessed = all.length > 0; }
+  let flow = '';
+  if (rows.length >= 2) {
+    const a = rows[0].f, b = rows[rows.length - 1].f;
+    const ov = a.filter(x => b.some(y => y.includes(x) || x.includes(y)));
+    flow = !ov.length ? '바뀜' : (ov.length === a.length && a.length === b.length ? '그대로' : '넓어짐');
+  }
+  return { rows, all, flow, guessed };
+}
+
+/* 한 기준(핵심·권장 목록)과 들은 과목 맞대기 — 예전 재기/겹치기 */
+function pathMeasure(core, rec, ix, ctx) {
+  const one = list => {
+    let pt = 0, full = 0, pure = 0, pureFull = 0; const hit = [], chk = [], miss = [], strong = new Set();
+    list.forEach(t => {
+      const k = subjNorm(t), st = subjStatus(t, ctx.taken, ctx.gy); if (!st) return;
+      const gy = PATH_IX.tokGy[k] || (k in GYOGWA_WORDS ? pathGy(k) : ''); const mul = ctx.mul[gy] ?? 1;
+      let w = Math.max(0.15, Math.log(ix.N / (ix.df[k] || 1)));
+      if (!PATH_IX.known.has(k)) w *= 0.15; // '수학, 과학'처럼 교과 이름만 적은 기준은 가려 낼 힘이 없다
+      pureFull += w;
+      if (st !== 'no') { full += w; pt += w * mul; pure += w; (st === 'ok' ? hit : chk).push(t); if (mul > 1) strong.add(gy); }
+      else { full += w * (mul < 1 ? 2 : 1); miss.push(t); } // 성적이 어려웠던 교과에서 빠진 과목은 순서에서만 더 무겁게
+    });
+    return { pt, full, r: full ? Math.min(1, pt / full) : null, pr: pureFull ? pure / pureFull : null, hit, chk, miss, strong };
+  };
+  const H = one(core), R = one(rec), total = H.full + R.full;
+  if (total < 2.5) return null; // 국어·영어만 적은 곳처럼 정보가 없는 기준은 버린다
+  const mix = (a, b) => a == null ? b : b == null ? a : 0.75 * a + 0.25 * b;
+  return {
+    score: mix(H.r, R.r) * (total / (total + 6)),
+    ov: Math.round(mix(H.pr, R.pr) * 100), // 화면 숫자: 성적을 얹지 않은 겹침
+    hc: H.hit.length + H.chk.length, ht: H.hit.length + H.chk.length + H.miss.length,
+    rc: R.hit.length + R.chk.length, rt: R.hit.length + R.chk.length + R.miss.length,
+    hit: [...H.hit, ...R.hit], chk: [...H.chk, ...R.chk], miss: [...H.miss, ...R.miss], coreMiss: H.miss,
+    strong: [...new Set([...H.strong, ...R.strong])]
+  };
+}
+
+function pathCompute() {
+  const P = S.rec.path, ix = PATH_IX;
+  const { taken, gy } = takenSets();
+  // 성적 강약: 9등급 강 ≤3·약 ≥6, 5등급 강 ≤2·약 ≥4 (예전 문턱 그대로)
+  const sys = S.rec.system || sysOf(S.profile.curr), lo = sys === 5 ? 2 : 3, hi = sys === 5 ? 4 : 6;
+  const agg = {};
+  (S.rec.grades || []).forEach(r => { const g = Number(r.등급), c = Number(r.학점) || 1; if (!(g >= 1 && g <= 9) || !r.교과) return; const k = pathGy(r.교과); (agg[k] = agg[k] || { s: 0, w: 0 }); agg[k].s += g * c; agg[k].w += c; });
+  const mul = {}, strong = [], weak = [];
+  Object.entries(agg).forEach(([k, v]) => { const a = v.s / v.w; if (a <= lo) { mul[k] = 1.25; strong.push([k, a]); } else if (a >= hi) { mul[k] = 0.75; weak.push([k, a]); } });
+  const ctx = { taken, gy, mul };
+  const hope = pathHope();
+  const interest = String(S.profile.interest || '').split(/[,·\/\s]+/).map(s => s.trim()).filter(s => s.length >= 2);
+  const wishWords = [...new Set([...hope.all, ...interest])];
+  // 학과사전 낱말 맞대기: 낱말이 걸리는 학과가 적을수록 무겁게
+  const dict = {}, dictWhy = {};
+  wishWords.forEach(w => { const list = ix.word[w]; if (!list) return; const wt = 1 / Math.sqrt(list.length); list.forEach(nm => { const k = pathKey(nm); dict[k] = (dict[k] || 0) + wt; (dictWhy[k] = dictWhy[k] || []); if (!dictWhy[k].includes(w)) dictWhy[k].push(w); }); });
+  const bonus = name => {
+    const bare = String(name).replace(/(학과군|학부|학과|전공|계열|과정)$/, '');
+    const hw = wishWords.filter(w => name.includes(w) || (bare.length >= 2 && w.includes(bare)));
+    const k = pathKey(name), d = dict[k] || 0;
+    return { add: 0.25 * Math.min(2, hw.length) + Math.min(0.3, 0.1 * d), hw, dw: dictWhy[k] || [] };
+  };
+  // 대학 기준 → 같은 이름 묶기
+  const rows = [];
+  ix.uni.units.forEach(u => { if (P.buk && !isBUK(u.univ)) return; const c = pathMeasure(u.core, u.rec, ix.uni, ctx); if (!c) return; const b = bonus(u.unit); rows.push({ ...u, ...c, b, s: c.score + b.add }); });
+  rows.sort((a, b) => b.s - a.s || b.ht - a.ht);
+  const groups = new Map();
+  rows.forEach(x => { if (!groups.has(x.key)) groups.set(x.key, { ...x, unis: [], n: 0 }); const g = groups.get(x.key); g.n++; if (g.unis.length < 6 && !g.unis.includes(uniBase(x.univ))) g.unis.push(uniBase(x.univ)); });
+  const cands = [...groups.values()];
+  // 지망: 점수에 얹지 않고 따로 세운다
+  let wish = null;
+  if (P.unit) {
+    const wk = pathKey(P.unit);
+    const exact = P.univ ? rows.find(x => x.key === wk && sameUni(x.univ, P.univ)) : null, sim = rows.find(x => x.key === wk);
+    const use = exact || sim, rank = cands.findIndex(g => g.key === wk) + 1;
+    const hw = hope.all.filter(w => P.unit.includes(w) || w.includes(P.unit.replace(/(학과군|학부|학과|전공|계열|과정)$/, '')));
+    wish = { use, same: !!exact, rank, total: cands.length, canCompare: hope.all.length > 0, off: hope.all.length > 0 && !hw.length, overlapWords: hw };
+  }
+  // 어느 쪽으로 가도 쓰이는 과목: 위 후보 10곳의 기준에 거듭 나오는 과목(교과 이름만 적은 것은 뺀다)
+  const common = [];
+  const top10 = cands.slice(0, 10);
+  if (top10.length >= 3) {
+    const cnt = {};
+    top10.forEach(g => new Set([...g.hit, ...g.chk, ...g.miss].map(t => subjNorm(t))).forEach(k => { if (ix.known.has(k)) cnt[k] = (cnt[k] || 0) + 1; }));
+    const th = Math.max(2, Math.ceil(top10.length * 0.4));
+    const nameOf = k => { for (const g of top10) { const t = [...g.hit, ...g.chk, ...g.miss].find(x => subjNorm(x) === k); if (t) return t; } return k; };
+    Object.entries(cnt).filter(([, n]) => n >= th).forEach(([k, n]) => { const t = nameOf(k); common.push({ t, n, st: subjStatus(t, taken, gy) }); });
+    common.sort((a, b) => b.n - a.n || (a.st === 'no' ? 0 : 1) - (b.st === 'no' ? 0 : 1));
+  }
+  // 학과사전 기준(대학이 과목을 안 밝힌 학과): 따로 모으고, 과목 목록이 같은 학과는 한 줄로
+  const seenKey = new Set(cands.map(g => g.key)), fp = new Map(), net = [];
+  if (!P.buk) ix.net.units.forEach(u => { if (seenKey.has(u.key)) return; const c = pathMeasure(u.core, u.rec, ix.net, ctx); if (!c) return; const b = bonus(u.name); net.push({ ...u, ...c, b, s: c.score + b.add }); });
+  net.sort((a, b) => b.s - a.s);
+  const netG = [];
+  net.forEach(x => { const f = x.core.join('|') + '#' + x.rec.join('|'); const g = fp.get(f); if (g) { if (g.same.length < 4) g.same.push(x.name); return; } x.same = []; fp.set(f, x); netG.push(x); });
+  // 교육과정: 2015 이름이면 겹침이 낮게 나올 수 있다
+  const sel = [...taken].filter(k => !/^(국어|수학|영어|한국사|통합사회|통합과학|과학탐구실험)$/.test(k) && !/^공통/.test(k) && !/^(통합|과학탐구실험|한국사)[12]$/.test(k));
+  const old = sel.filter(k => ONLY_2015.map(subjNorm).includes(k)).length;
+  const curr = sel.length < 6 ? 'few' : (old / sel.length >= 0.3 ? '2015' : '2022');
+  const best = Math.max(0, ...cands.slice(0, 3).map(g => g.ov));
+  return { cands, wish, common, net: netG, hope, strong, weak, sys, lo, hi, curr, sel: sel.length, best, wishWords };
+}
+
+/* ---------- 화면 ---------- */
+const PATH_STATE = { '정함': '지망 학과를 맨 위에 따로 세우고, 권장과목에서 빠진 과목을 보여 줘요.', '미정': '아직 좁히지 않아도 돼요. 어느 쪽으로 가도 쓰이는 과목을 먼저 보세요.', '바뀜': '진로가 바뀌어도 지금까지의 기록은 그대로 쓸 수 있어요. 기록의 희망과 지금 지망이 어떻게 다른지 먼저 보세요.' };
+const pathChip = (t, st) => `<span class="sub ${st || 'no'}">${esc(t)}</span>`;
+function pathReason(g) {
+  const r = [];
+  if (g.b.hw.length) r.push(`희망 '${g.b.hw.slice(0, 2).join(', ')}'`);
+  const got = [...g.hit, ...g.chk].slice(0, 3);
+  if (got.length) r.push(`${got.join('·')} 들음`);
+  if (g.strong.length) r.push(`성적 좋은 ${g.strong.slice(0, 2).join('·')}`);
+  if (!g.b.hw.length && g.b.dw.length) r.push(`학과사전 낱말 '${g.b.dw.slice(0, 2).join(', ')}'`);
+  if (g.coreMiss.length) r.push(`아직 안 보임: ${g.coreMiss.slice(0, 2).join('·')}`);
+  return r.join(' · ') || '권장과목 겹침으로만 잡았어요';
+}
+function pathRow(g) {
+  return `<tr><td><b>${esc(dispName(g.unit))}</b><br><span class="tiny">${esc(g.unis.join(', '))}${g.n > g.unis.length ? ` 외 ${g.n - g.unis.length}곳` : ''}</span></td>
+    <td class="n"><b>${g.ov}%</b></td><td class="n">${g.ht ? `${g.hc}/${g.ht}` : '-'}</td>
+    <td><span class="tiny">${esc(pathReason(g))}</span></td>
+    <td><button class="btn small white" data-act="mjDept" data-name="${esc(g.unit)}">학과 보기</button></td></tr>`;
+}
+async function fillPath() {
+  const box = $('#pathBox'); if (!box) return;
+  S.rec.path = S.rec.path || { state: '', unit: (S.rec.fit && S.rec.fit.unit) || '', univ: (S.rec.fit && S.rec.fit.univ) || '', buk: false };
+  const P = S.rec.path;
+  await pathIndex();
+  if (!$('#pathBox')) return;
+  const C = pathCompute();
+  const later = S.profile.grade === '고1' || S.profile.grade === '고2';
+  const st = P.state || (P.unit ? '정함' : '미정');
+  const seg = (v, t) => `<button data-act="pathState" data-v="${v}" aria-pressed="${st === v}">${t}</button>`;
+  const units = [...new Set(PATH_IX.uni.units.map(u => dispName(u.unit)))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const unis = uniOptions(PATH_IX.uni.units.map(u => u.univ));
+
+  // 기록의 희망 분야 흐름
+  const H = C.hope;
+  const hopeHTML = H.rows.length ? `<p class="statline">기록의 희망 분야: ${H.rows.map(r => `${r.g ? r.g + '학년 ' : ''}<b>${esc(r.f.join(', '))}</b>`).join(' → ')}</p>
+    ${H.flow === '바뀜' ? '<p class="note">처음과 마지막 희망 분야가 달라요. 바뀐 이유와 그 사이에 무엇을 이어 왔는지 면접에서 물을 수 있어요.</p>' : H.flow === '넓어짐' ? '<p class="note">희망 분야가 이어지면서 넓어졌어요. 어느 쪽이 중심인지 정리해 두세요.</p>' : H.flow === '그대로' ? '<p class="note">학년마다 희망 분야가 같아요. 학년별로 이어진 활동을 설명하기 좋아요.</p>' : ''}`
+    : (H.all.length ? `<p class="statline">${H.guessed ? '기록에서 짐작한 희망 낱말' : '희망 낱말'}: <b>${esc(H.all.join(', '))}</b>${H.guessed ? ' <span class="tiny">(희망분야 칸이 없어 진로활동 낱말로 짐작)</span>' : ''}</p>` : '<p class="tiny">진로활동에서 희망 분야를 못 찾았어요. 아래 지망 학과를 적으면 그것으로 봐요.</p>');
+
+  // (1) 지망
+  let wishHTML = '';
+  const W = C.wish;
+  if (W) {
+    if (!W.use) wishHTML = `<div class="note"><b>지망 ${esc(P.unit)}</b>: 이 이름으로 과목을 밝힌 대학 자료가 없어요. 권장과목 탭에서 학과사전 기준으로 볼 수 있어요.</div>`;
+    else {
+      const u = W.use;
+      wishHTML = `<h3>지망 · ${esc(W.same ? uniBase(u.univ) + ' ' : '')}${esc(dispName(u.unit))}${W.same ? '' : ' <span class="badge">같은 이름 학과 기준</span>'}</h3>
+        ${W.same ? '' : `<p class="tiny">${esc(uniBase(u.univ))} 자료로 맞대어 봤어요.</p>`}
+        <div class="stats"><div class="stat vio"><span>과목 겹침</span><b>${u.ov}%</b></div>
+          <div class="stat mint"><span>핵심 권장</span><b>${u.ht ? `${u.hc}<small> / ${u.ht}</small>` : '—'}</b></div>
+          <div class="stat apri"><span>권장</span><b>${u.rt ? `${u.rc}<small> / ${u.rt}</small>` : '—'}</b></div>
+          ${W.rank ? `<div class="stat sun"><span>후보 ${W.total}곳 중</span><b>${W.rank}<small>번째</small></b></div>` : ''}</div>
+        <div class="legend"><span class="ok">들었어요</span><span class="chk">이름이 비슷한 과목</span><span class="no">아직 안 보여요</span></div>
+        <div class="subs">${u.hit.map(t => pathChip(t, 'ok')).join('')}${u.chk.map(t => pathChip(t, 'chk')).join('')}${u.miss.map(t => pathChip(t, 'no')).join('')}</div>
+        ${u.coreMiss.length ? `<p class="one">핵심 권장 중 아직 안 보이는 과목: <b>${esc(u.coreMiss.join(', '))}</b>${later ? ' · 남은 학기에 들을 수 있는지 편성표를 확인해요.' : ''}</p>` : '<p class="one">핵심 권장과목은 다 보여요.</p>'}
+        <p class="tiny">순서에 지망 가산점은 없어요. 지금 들은 과목이 얼마나 겹치는지일 뿐, 적성이나 합격 가능성이 아니에요.</p>`;
+    }
+    // (3) 기록 희망과 지망
+    if (!W.canCompare) wishHTML += `<p class="tiny">진로활동에 희망 분야가 없어 지망과 같은 쪽인지는 말할 수 없어요.</p>`;
+    else if (W.off) wishHTML += `<div class="warn"><b>기록과 지망이 달라요.</b> 기록의 희망은 <b>${esc(H.all.slice(0, 4).join(', '))}</b>, 지망은 <b>${esc(P.unit)}</b>이에요. 진로가 바뀐 건지, 기록이 아직 못 따라온 건지 먼저 이야기해 보세요.</div>`;
+    else wishHTML += `<p class="note">기록의 희망과 지망이 이어져요. 겹치는 낱말: <b>${esc(W.overlapWords.join(', '))}</b></p>`;
+  }
+
+  // (2) 후보
+  const top = C.cands.slice(0, 12), more = C.cands.slice(12, 24);
+  const trust = C.best >= 70 ? '겹침이 뚜렷해요. 그래도 적성과 흥미는 이 숫자에 없어요.' : C.best >= 50 ? '겹침이 중간쯤이에요. 위아래 몇 개는 순서가 쉽게 바뀔 수 있어요.' : `가장 높은 겹침이 ${C.best}%예요. 아직 들은 선택과목이 적어 가려내기 어려워요. 과목을 더 들은 뒤 다시 보세요.`;
+  const head = '<thead><tr><th>학과 (대학)</th><th class="n">겹침</th><th class="n">핵심</th><th>이유</th><th></th></tr></thead>';
+  const candHTML = top.length ? `<h3>들은 과목으로 본 학과 ${C.cands.length}곳 중 위 ${top.length}곳</h3>
+    <p class="tiny">${esc(trust)}</p>
+    <div class="tbl-wrap"><table>${head}<tbody>${top.map(pathRow).join('')}</tbody></table></div>
+    ${more.length ? `<details class="fold" data-fold="pathMore"${fo('pathMore')}><summary><span class="sumt"><b>더 보기</b><span class="pv">${more.length}곳</span></span></summary><div class="fb"><div class="tbl-wrap"><table>${head}<tbody>${more.map(pathRow).join('')}</tbody></table></div></div></details>` : ''}`
+    : '<div class="empty"><strong>맞대어 볼 과목을 못 찾았어요</strong>성적 탭에서 과목이 제대로 읽혔는지 확인해 주세요.</div>';
+
+  // 학과사전 기준
+  const netHTML = C.net.length ? `<details class="fold" data-fold="pathNet"${fo('pathNet')}><summary><span class="sumt"><b>대학이 과목을 안 밝힌 학과</b><span class="pv">학과사전(커리어넷) 기준 · ${C.net.length}곳</span></span></summary><div class="fb">
+    <p class="tiny">학과 일반 기준이라 위 표와 같은 자가 아니에요. 그래서 따로 줄 세웠어요.${C.curr === '2015' ? ' 학과사전은 2022 개정 과목 이름이라 2015 과목은 낮게 나올 수 있어요.' : ''}</p>
+    <div class="tbl-wrap"><table><thead><tr><th>학과</th><th class="n">겹침</th><th>이유</th><th></th></tr></thead><tbody>${C.net.slice(0, 12).map(g => `<tr><td><b>${esc(g.name)}</b><br><span class="tiny">${esc(g.field)}${g.same.length ? ' · 같은 과목: ' + esc(g.same.join(', ')) : ''}</span></td><td class="n"><b>${g.ov}%</b></td><td><span class="tiny">${esc(pathReason(g))}</span></td><td><button class="btn small white" data-act="mjDept" data-name="${esc(g.name)}">학과 보기</button></td></tr>`).join('')}</tbody></table></div></div></details>` : '';
+
+  // (4) 어느 쪽에도 쓰이는 과목
+  const commonHTML = C.common.length && (st !== '정함' || !P.unit) ? `<h3>어느 쪽으로 가도 쓰이는 과목</h3>
+    <p class="tiny">위 후보 ${Math.min(10, C.cands.length)}곳의 권장과목에 거듭 나오는 과목이에요. 숫자는 몇 곳에 나왔는지예요.</p>
+    <div class="subs">${C.common.slice(0, 10).map(c => `<span class="sub ${c.st || 'no'}">${esc(c.t)} <span class="tiny">· ${c.n}곳${c.st === 'ok' ? ' · 들었어요' : ''}</span></span>`).join('')}</div>` : '';
+
+  // 할 일 (예전 pathAdvice)
+  const todo = [];
+  if (S.profile.grade === '고1') todo.push(['과목은 아직 고를 수 있어요', '2학년·3학년 과목 선택이 남았어요. 지금 안 들은 과목은 아직 고르는 중이에요.']);
+  else if (S.profile.grade === '고2') todo.push(['3학년 과목 선택이 남았어요', W && W.use && W.use.coreMiss.length ? `${W.use.coreMiss.join(', ')}이 학교에 열리는지 편성표로 확인해요.` : '권장과목이 학교에 열리는지 편성표로 확인해요.']);
+  else todo.push(['과목은 이미 정해졌어요', '못 들은 과목이 있다면, 개설되지 않은 사정과 무엇으로 대신 채웠는지 말할 수 있게 준비해요.']);
+  const empty = Object.entries(S.rec.evidence || {}).filter(([, v]) => !v.length).map(([k]) => k);
+  if (empty.length) todo.push(['기록 근거를 못 찾은 평가 항목', `${empty.join(', ')} · ${later ? '남은 학기에 채울 수 있는 자리예요. 없는 역량이 아니라 안 적힌 기록이에요.' : '면접에서 말로 설명할 자리예요.'}`]);
+  const todoHTML = `<details class="fold" data-fold="pathTodo"${fo('pathTodo', true)}><summary><span class="sumt"><b>지금 할 일</b><span class="pv">${esc(todo[0][0])}</span></span><span class="cnt">${todo.length}</span></summary><div class="fb">
+    ${todo.map(([t, d]) => `<p style="margin:0 0 8px"><b>${esc(t)}</b><br><span class="tiny">${esc(d)}</span></p>`).join('')}</div></details>`;
+
+  // 성적 강약·교육과정 안내
+  const gText = C.strong.length || C.weak.length ? `<p class="tiny">순서에 반영한 성적: ${C.strong.length ? `잘한 교과 ${C.strong.map(([k, a]) => `${esc(k)} ${fmt(a)}`).join(', ')}` : ''}${C.strong.length && C.weak.length ? ' · ' : ''}${C.weak.length ? `어려웠던 교과 ${C.weak.map(([k, a]) => `${esc(k)} ${fmt(a)}`).join(', ')}` : ''} <span class="tiny">(${C.sys}등급제: ${C.lo}등급 이내 / ${C.hi}등급 이상 기준)</span></p>` : '';
+  const currText = C.curr === '2015' ? '<div class="warn">2015 개정 과목 이름이 많아요. 권장과목 자료는 2022 개정 이름이 섞여 있어, 비슷한 과목은 노란색(이름이 비슷한 과목)으로 보여요. 숫자보다 빠진 과목 칸을 보세요.</div>'
+    : C.curr === 'few' ? `<div class="note">읽은 선택과목이 ${C.sel}개뿐이라 겹침을 믿기 어려워요. 성적 탭에서 과목이 다 읽혔는지 확인해요.</div>` : '';
+
+  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 학과 추천</h2>
+    <p class="one">들은 과목과 대학 권장과목이 얼마나 겹치는지 봤어요.</p>
+    <div class="seg" role="group" aria-label="진로 상태" style="max-width:420px">${seg('정함', '정했어요')}${seg('미정', '아직이에요')}${seg('바뀜', '바뀌었어요')}</div>
+    <p class="tiny">${esc(PATH_STATE[st])}</p>
+    <div class="grid2"><div><label class="f" for="pathUnit">지망 학과 <span class="tiny">(선택)</span></label><input id="pathUnit" type="search" list="pathUnitList" data-in="pathUnit" value="${esc(P.unit)}" placeholder="예: 간호학과" autocomplete="off"><datalist id="pathUnitList">${units.map(n => `<option value="${esc(n)}">`).join('')}</datalist></div>
+    <div><label class="f" for="pathUniv">지망 대학 <span class="tiny">(선택)</span></label><input id="pathUniv" type="search" list="pathUnivList" data-in="pathUniv" value="${esc(P.univ)}" placeholder="예: 부산대" autocomplete="off"><datalist id="pathUnivList">${unis.map(o => `<option value="${esc(o.label)}">`).join('')}</datalist></div></div>
+    <div class="row" style="margin-top:8px"><label class="confirm"><input type="checkbox" data-in="pathBuk" ${P.buk ? 'checked' : ''}>부울경 대학만</label><span class="spacer"></span><button class="btn vio" data-act="pathGo">다시 보기</button></div>
+    ${hopeHTML}${currText}${wishHTML}${candHTML}${netHTML}${commonHTML}${gText}${todoHTML}
+    <p class="tiny" style="margin-top:8px">겹침 %는 권장과목을 실제로 들었는지만 센 값이에요. 줄 세우는 순서에는 성적과 희망 낱말이 들어가요. 적성·흥미·합격 가능성은 어디에도 없어요. 후보를 좁히는 데 쓰고, 고르는 일은 학생과 선생님이 해요.</p></section>`;
+}
+IN.pathUnit = el => { (S.rec.path = S.rec.path || {}).unit = el.value.trim(); };
+IN.pathUniv = el => { (S.rec.path = S.rec.path || {}).univ = el.value.trim(); };
+IN.pathBuk = el => { (S.rec.path = S.rec.path || {}).buk = el.checked; fillPath(); };
+ACT.pathState = el => { (S.rec.path = S.rec.path || {}).state = el.dataset.v; fillPath(); };
+ACT.pathGo = () => { const P = (S.rec.path = S.rec.path || {}); const u = $('#pathUnit'), v = $('#pathUniv'); if (u) P.unit = u.value.trim(); if (v) P.univ = v.value.trim(); if (P.unit && !P.state) P.state = '정함'; fillPath(); };
