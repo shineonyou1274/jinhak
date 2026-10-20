@@ -1693,13 +1693,14 @@ async function fillIpg() {
   }
   const five = my && my.sys === 5;
   const cmp = o => five ? gradeMean9(o.v) : o.v;
+  const O = my ? gradeOutlook() : null;
   const near = out.map(o => ({ ...o, c: cmp(o) })).filter(o => o.c != null && Math.abs(o.c - my.avg) <= 0.8)
     .sort((a, b) => (S.profile.rural ? (b.rural - a.rural) : 0) || Math.abs(a.c - my.avg) - Math.abs(b.c - my.avg));
   const lim = S.rec.ipgMore ? 60 : 12;
   const trs = near.slice(0, lim).map(o => { const d = o.c - my.avg;
     return `<tr><td><b>${esc(o.u)}</b><br><span class="tiny">${esc(o.unit)}</span></td><td>${esc(o.tr)}${o.rural ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(o.y)}학년도</span></td>
       <td class="n"><b>${fmt(o.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(o.c)}</span>` : ''}<br><span class="tiny">${esc(o.crit)}</span></td>
-      <td class="n">${Math.abs(d) < 0.005 ? '0.00' : (d > 0 ? '+' : '−') + fmt(Math.abs(d))}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
+      <td class="n">${Math.abs(d) < 0.005 ? '0.00' : (d > 0 ? '+' : '−') + fmt(Math.abs(d))}${O && O.rem ? `<br><span class="tiny">${needShort(o.c, O)}</span>` : ''}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
   // 3) 우리 학교 선배 사례(선생님이 이 기기에 불러온 경우만)
   const cases = (S.teacher.cases || []).filter(c => words.length && hasW(c.학과));
   const csNear = my ? cases.filter(c => { const v = Number(c.성적); if (!isFinite(v) || !c.성적) return false; const cv = five && /9/.test(c.성적체계 || '9') ? gradeMean9(v) : v; return cv != null && Math.abs(cv - my.avg) <= 0.8; }) : [];
@@ -1717,17 +1718,65 @@ async function fillIpg() {
     if (!pick) { const p2 = ipgPick(off); if (p2) pick = { v: Number(p2.성적값), crit: p2.성적기준, y: p2.학년도, src: (/어디가/.test(p2.출처유형) ? '어디가' : '대학 발표'), same: false, tr: p2.전형명 }; }
     return { cd, pick };
   }) : [];
-  const candHTML = candRows.length ? `<h3>내가 담은 후보 ${candRows.length}곳</h3><div class="tbl-wrap"><table><thead><tr><th>후보</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th></tr></thead><tbody>${candRows.map(({ cd, pick }) => { const cv = pick ? (five ? gradeMean9(pick.v) : pick.v) : null; const d = cv != null ? cv - my.avg : null;
-    return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td><td class="n">${pick ? `<b>${fmt(pick.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(cv)}</span>` : ''}<br><span class="tiny">${esc(pick.crit || '')} · ${esc(pick.y)} · ${esc(pick.src)}${pick.same ? '' : ' · 다른 전형(' + esc(pick.tr || '') + ')'}</span>` : '<span class="badge">입결 없음</span>'}</td><td class="n">${d == null ? '-' : `<b>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</b>`}</td></tr>`; }).join('')}</tbody></table></div>` : (my ? '<p class="tiny">학과·전형 화면에서 후보를 담으면 여기서 내 평균과 나란히 볼 수 있어요.</p>' : '');  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
+  const candHTML = candRows.length ? `<h3>내가 담은 후보 ${candRows.length}곳</h3><div class="tbl-wrap"><table><thead><tr><th>후보</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th>${O && O.rem ? '<th>남은 학기에 필요한 평균</th>' : ''}</tr></thead><tbody>${candRows.map(({ cd, pick }) => { const cv = pick ? (five ? gradeMean9(pick.v) : pick.v) : null; const d = cv != null ? cv - my.avg : null;
+    return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td><td class="n">${pick ? `<b>${fmt(pick.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(cv)}</span>` : ''}<br><span class="tiny">${esc(pick.crit || '')} · ${esc(pick.y)} · ${esc(pick.src)}${pick.same ? '' : ' · 다른 전형(' + esc(pick.tr || '') + ')'}</span>` : '<span class="badge">입결 없음</span>'}</td><td class="n">${d == null ? '-' : `<b>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</b>`}</td>${O && O.rem ? `<td>${cv == null ? '-' : needHTML(cv, O)}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>` : (my ? '<p class="tiny">학과·전형 화면에서 후보를 담으면 여기서 내 평균과 나란히 볼 수 있어요.</p>' : '');  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
     ${my ? `<p class="one">내 평균 <b>${fmt(my.avg)}</b> (${my.sys}등급제) 근처(±0.8) 입결만 모았어요.</p>` : '<div class="note">성적표가 있어야 비교할 수 있어요. 성적 탭에서 확인해 주세요.</div>'}
     <label class="f" for="ipgQ">학과 낱말 <span class="tiny">(희망분야에서 자동, 쉼표로 고칠 수 있어요)</span></label>
     <div class="row"><input id="ipgQ" type="text" value="${esc(words.join(', '))}" style="flex:1;min-width:200px" placeholder="예: 간호, 기계, 교육"><button class="btn vio" data-act="ipgGo">다시 찾기</button></div>
-    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
+    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${O ? goalHTML(O, candRows, near) : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
     ${my && words.length ? (trs ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>대학·모집단위</th><th>전형</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th><th>출처</th></tr></thead><tbody>${trs}</tbody></table></div>
       ${near.length > lim ? `<button class="btn white small" data-act="ipgMore" style="margin-top:8px">더 보기 (${near.length - lim})</button>` : ''}` : '<div class="empty"><strong>근처 입결을 못 찾았어요</strong>학과 낱말을 바꿔 보세요.</div>') : ''}
     <p class="tiny" style="margin-top:8px">차이 −는 입결 숫자가 내 평균보다 작다는 뜻이에요(더 높은 등급). 기준(50%·70%·평균)과 전형마다 반영 방식이 달라서 참고로만 보세요.</p>
     ${caseHTML}</section>`;
 }
+/* ---------- 목표까지: 남은 학기에 평균 몇 등급을 받아야 최종 평균이 목표에 닿는지 ----------
+   수시는 3학년 1학기까지 5학기. 남은 학기 학점은 지금까지 학기당 평균 학점으로 잡는다(대학별 반영 교과·비율은 못 반영). */
+function gradeOutlook() {
+  const G = (S.rec.grades || []).filter(r => Number(r.등급) >= 1 && Number(r.학점) > 0);
+  const terms = [...new Set(G.map(r => r.학년 + '-' + r.학기))].filter(t => /^[1-3]-[12]$/.test(t)).sort();
+  const w = wavg(G); if (!w || !terms.length) return null;
+  const done = terms.filter(t => t <= '3-1').length, rem = Math.max(0, 5 - done);
+  const per = terms.map(t => [t, wavg(G.filter(r => r.학년 + '-' + r.학기 === t))]).filter(x => x[1]);
+  const best = per.reduce((a, b) => (!a || b[1].avg < a[1].avg ? b : a), null);
+  const Cd = w.credits, Sd = w.avg * Cd, Cr = (Cd / terms.length) * rem;
+  const sys = S.rec.system || sysOf(S.profile.curr);
+  const fin = x => Cr ? (Sd + x * Cr) / (Cd + Cr) : w.avg;
+  return { avg: w.avg, Cd, Sd, Cr, rem, done, terms, best, sys, all1: fin(1), withBest: best ? fin(best[1].avg) : w.avg, keep: w.avg };
+}
+const needOf = (target, O) => O.Cr ? (target * (O.Cd + O.Cr) - O.Sd) / O.Cr : null;
+function needShort(target, O) {
+  const n = needOf(target, O); if (n == null) return '';
+  if (n >= O.avg) return '지금 평균 유지로 닿음';
+  if (n < 1) return '남은 학기 모두 1등급이어도 안 닿음';
+  return `남은 ${O.rem}학기 평균 ${fmt(n)} 필요`;
+}
+function needHTML(target, O) {
+  const n = needOf(target, O); if (n == null) return '-';
+  const lvl = n >= O.avg ? ['mint', '지금처럼'] : n < 1 ? ['rose', '성적만으로는 어려움'] : O.best && n >= O.best[1].avg ? ['vio', '내 최고 학기 수준'] : ['sun', '큰 도약'];
+  return `${n < 1 ? '1등급 밖' : `<b>${fmt(n)}</b>`} <span class="badge ${lvl[0]}">${lvl[1]}</span>`;
+}
+function goalHTML(O, candRows, near) {
+  if (!O.rem) return `<div class="note">수시에 들어가는 5학기(3학년 1학기까지) 성적이 다 나왔어요. 이제 내신 평균은 바뀌지 않아요.</div>`;
+  const picks = [...candRows.filter(c => c.pick).map(c => [uniBase(c.cd.univ) + ' ' + c.cd.unit, O.sys === 5 ? gradeMean9(c.pick.v) : c.pick.v]), ...near.slice(0, 3).map(o => [o.u + ' ' + o.unit, o.c])].filter(x => x[1] != null).slice(0, 6);
+  const T = S.rec.goalT != null && S.rec.goalT !== '' ? Number(S.rec.goalT) : (picks[0] ? Number(fmt(picks[0][1])) : null);
+  const n = T != null && isFinite(T) ? needOf(T, O) : null;
+  const gap = n != null ? O.avg - n : null;
+  const msg = n == null ? '목표 평균을 넣거나 아래 후보 입결을 눌러 보세요.'
+    : n >= O.avg ? `지금 평균(${fmt(O.avg)})만 유지해도 최종 ${fmt(T)}에 닿아요.`
+    : n < 1 ? `남은 ${O.rem}학기를 모두 1등급 받아도 최종 평균은 ${fmt(O.all1)}까지예요. 내신 숫자만으로는 ${fmt(T)}에 못 닿아요. 학생부종합의 기록이나 다른 전형을 같이 보세요.`
+    : `남은 ${O.rem}학기에 평균 <b>${fmt(n)}등급</b>을 받으면 최종 ${fmt(T)}이 돼요. 지금보다 학기마다 <b>${fmt(gap)}등급</b> 더 올려야 해요.${O.best ? (n >= O.best[1].avg ? ` 내 최고 학기(${O.best[0]}, ${fmt(O.best[1].avg)}) 수준이면 돼요.` : ` 아직 받아 본 적 없는 성적이에요(최고 학기 ${O.best[0]} ${fmt(O.best[1].avg)}).`) : ''}`;
+
+  return `<div class="goal"><h3>${ic('star')} 목표까지 얼마나</h3>
+    <div class="stats"><div class="stat mint"><span>지금 평균 (${O.done}학기)</span><b>${fmt(O.avg)}</b><span class="tiny">수시 반영 5학기 중 ${O.rem}학기 남음</span></div>
+      <div class="stat vio"><span>최고 학기만큼 받으면</span><b>${fmt(O.withBest)}</b><span class="tiny">${O.best ? esc(O.best[0]) + ' ' + fmt(O.best[1].avg) + ' 유지' : ''}</span></div>
+      <div class="stat sun"><span>남은 학기 모두 1등급이면</span><b>${fmt(O.all1)}</b><span class="tiny">내신으로 갈 수 있는 끝</span></div></div>
+    <div class="row" style="margin-top:10px"><label class="f" for="goalT" style="margin:0">목표 최종 평균 (${O.sys}등급제)</label><input id="goalT" type="number" step="0.01" min="1" max="${O.sys}" inputmode="decimal" value="${T != null ? esc(String(T)) : ''}" style="width:110px" data-in="goalT"></div>
+    ${picks.length ? `<div class="hitchips" style="margin-top:6px">${picks.map(([l, v]) => `<button class="chip" data-act="goalPick" data-v="${fmt(v)}">${esc(l)} ${fmt(v)}</button>`).join('')}</div>` : ''}
+    <p class="one" id="goalMsg" style="margin-top:8px">${msg}</p>
+    <p class="tiny">지금까지 학기당 평균 학점으로 남은 학기를 잡은 계산이에요. 대학마다 반영 과목·학년 비율이 달라 실제 환산 점수와 다를 수 있어요.</p></div>`;
+}
+IN.goalT = el => { S.rec.goalT = el.value; const O = gradeOutlook(); const box = $('#goalMsg'); if (!O || !box) return; clearTimeout(IN.goalT._t); IN.goalT._t = setTimeout(() => fillIpg().then(() => { const i = $('#goalT'); if (i) { i.focus(); const v = i.value; i.value = ''; i.value = v; } }), 500); };
+ACT.goalPick = el => { S.rec.goalT = el.dataset.v; fillIpg(); };
 ACT.ipgGo = () => { const i = $('#ipgQ'); S.rec.ipgQ = i ? i.value : ''; S.rec.ipgMore = false; fillIpg(); };
 ACT.ipgMore = () => { S.rec.ipgMore = true; fillIpg(); };
 ACT.ipgOpen = el => { const n = el.dataset.n, u = el.dataset.u; Object.assign(S.mj, { dept: n, deptName: n, keys: [...unitKeys(n)], view: 'univ', univ: u, utab: 'result', uq: '', umore: false }); go('major'); };
@@ -2086,7 +2135,8 @@ ACT.printSum = async () => {
   P.innerHTML = `<h1>진학 나침반 · 상담 요약 ${R.demo ? '(가상 학생 · 실제 사람 아님)' : ''}</h1>
     <p>${esc(p.grade)} · ${esc(currLabel(p.curr))} · 관심: ${esc(p.interest || '-')} ${p.rural ? '· 농어촌 해당 여부 확인 중' : ''} · ${new Date().toLocaleDateString('ko-KR')}</p>
     <h2>성적</h2><p>학점 가중 평균 (${sys}등급제): <b>${w ? fmt(w.avg) : '-'}</b> ${w ? `(${w.credits}학점)` : ''} ${b ? ` · 5등급 눈금 참고 ${fmt(b.lo)}~${fmt(b.hi)} (공식 환산 아님)` : ''}</p>
-    <h2>기록 근거 (항목별 대표 문장)</h2><table><tbody>${Object.entries(COMP_ITEMS).map(([c, list]) => list.map(k => `<tr><td style="width:28%"><b>${esc(c)}</b><br>${esc(k)}</td><td>${(ev[k] || [])[0] ? esc((ev[k][0].sent || '').slice(0, 120)) : '<i>찾은 문장 없음</i>'}</td></tr>`).join('')).join('')}</tbody></table>
+    ${(() => { const O = typeof gradeOutlook === 'function' ? gradeOutlook() : null; if (!O || !O.rem) return ''; return `<p>남은 ${O.rem}학기: 최고 학기(${esc(O.best ? O.best[0] : '-')})만큼 받으면 최종 <b>${fmt(O.withBest)}</b> · 모두 1등급이면 ${fmt(O.all1)}${S.rec.goalT ? ` · 목표 ${esc(S.rec.goalT)} → ` + esc(needShort(Number(S.rec.goalT), O)) : ''}</p>`; })()}
+    <h2>기록 근거 (항목별 대표 문장)</h2><table><tbody>${Object.entries(COMP_ITEMS).map(([c, list]) => list.map(k => `<tr><td style="width:30%"><b>${esc(c.replace('역량', ''))}</b> · ${esc(k)}</td><td>${(ev[k] || [])[0] ? esc((ev[k][0].sent || '').slice(0, 95)) + ((ev[k][0].sent || '').length > 95 ? '…' : '') : '<i>찾은 문장 없음</i>'}</td></tr>`).join('')).join('')}</tbody></table>
     <h2>내 지원 후보</h2>${S.cands.length ? `<table><thead><tr><th>대학</th><th>모집단위</th><th>전형 (2028 잠정)</th><th>인원</th><th>수능최저</th></tr></thead><tbody>${S.cands.map(c => { const ms = minFor(c.univ, { 유형: c.유형, 전형: c.전형, 모집단위: c.unit, 모집단위키: c.key }); return `<tr><td>${esc(c.univ)}</td><td>${esc(c.unit)}</td><td>${esc(c.유형)} · ${esc(c.전형)}</td><td>${esc(c.인원)}</td><td>${esc(minPlain(ms))}</td></tr>`; }).join('')}</tbody></table>` : '<p>아직 없음</p>'}
     <h2>스스로 점검 (내가 쓴 답)</h2>${ckAns.length ? ckAns.slice(0, 6).map(([id, v]) => `<p><b>${esc(id.split('|')[1])}</b>: ${esc(v.slice(0, 200))}</p>`).join('') : '<p>아직 없음</p>'}
     <h2>면접 연습한 질문</h2>${S.iv.answers.length ? `<ol>${S.iv.answers.map(a => `<li>${esc(a.q)}</li>`).join('')}</ol>` : '<p>아직 없음</p>'}
