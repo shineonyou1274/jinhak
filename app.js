@@ -1375,7 +1375,8 @@ function officialHTML(rows, my, u) {
   });
   const notes = [...new Set(rows.map(r => UNI_NOTE[Object.keys(UNI_NOTE).find(k => uniBase(r.대학).startsWith(k))]).filter(Boolean))];
   const head = `<thead><tr><th>학년도</th><th>전형</th><th class="n">인원</th><th class="n">경쟁률</th><th class="n">충원 표기<br><span class="tiny">대학별 의미 다름</span></th><th>성적 (기준 그대로)</th><th>출처</th></tr></thead>`;
-  return `<h3>대학 공식 발표 입결 <span class="badge mint">원 자료</span></h3>${notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
+  const allAdiga = rows.every(r => /어디가/.test(r.출처유형 || ''));
+  return `<h3>${allAdiga ? '대입정보포털 어디가 입결 <span class="badge mint">출처: 한국대학교육협의회</span>' : '대학 공식 발표 입결 <span class="badge mint">원 자료</span>'}</h3>${notes.map(n => `<p class="note">${esc(n)}</p>`).join('')}
     ${[...tracks.entries()].map(([tk, t], i) => { const key = 'ip|' + u + '|' + tk; return `<details class="fold apri" data-fold="${esc(key)}"${fo(key, i === 0)}><summary><span class="sumt"><b>${esc(t.a.전형명 || '전형')} <span class="badge">${esc(t.a.전형유형 || '-')}</span></b><span class="pv">${[...t.years].sort().reverse().map(esc).join(' · ')}학년도 · ${t.trs.length}건</span></span></summary><div class="fb">
       <div class="tbl-wrap"><table>${head}<tbody>${t.trs.join('')}</tbody></table></div></div></details>`; }).join('')}`;
 }
@@ -1427,6 +1428,7 @@ function fillUniv() {
     body = `<section class="panel vio"><h2>입결 참고</h2>${myBox(my)}
       ${!off.length && /영남대/.test(uniBase(u)) ? '<p class="note">영남대 입결은 대학 안내에 따라 공식 게시물에서 확인해 주세요. <a href="https://enter.yu.ac.kr/10000023?mode=view&bbs_seq=1223&categorycode=8" target="_blank" rel="noopener noreferrer">2026 수시 입학자 성적(영남대 입학처)</a></p>' : ''}${officialHTML(off, my, u)}${sheetHTML(sh, my, u)}
       ${!off.length && !sh.length ? '<div class="empty"><strong>이 대학·학과 입결 자료가 없어요</strong>대학 입학처 자료를 확인해 주세요.</div>' : ''}
+      <p class="note">어디가 <b>전형정보</b>에서 이 학과를 펼치면 2026 결과(50%·70% 등급)를 볼 수 있어요. <a href="https://www.adiga.kr/ucp/prc/uni/admssUnivView.do?menuId=PCPRCINF2000" target="_blank" rel="noopener noreferrer">어디가 전형정보 열기</a> <span class="tiny">출처: 한국대학교육협의회</span></p>
       <p class="tiny">합격 가능성을 알려 주는 게 아니에요. 대학마다 반영 과목·방식이 달라요.</p></section>`;
   } else {
     const seen = new Set();
