@@ -550,7 +550,8 @@ const COMP_ITEMS = {
   '공동체역량': ['협업과 소통능력', '나눔과 배려', '성실성과 규칙준수', '리더십']
 };
 const TAG_RULES = {
-  '학업성취도': ['성취', '성적', '향상', '등급', '우수한 성취', '학업 성취'],
+  // '열성적'·'기록 향상'·'성취감' 같은 오탐을 막으려고 낱말 대신 수업 성취 맥락을 본다
+  '학업성취도': [/(?<![가-힣])성적(?:이 |을 |이|을)?(?:향상|우수|상승|크게 오르|꾸준히 오르)/, /성취도(?:가|를|에서)? ?(?:높|향상|우수|최고|보여)/, /학업 ?성취/, /우수한 성취(?!감)/, /(?:성적|점수|성취도|학업 성취|이해도|문제 해결력|어휘력|독해력|계산력)(?:이|가)? ?(?:크게 |크게|꾸준히 |눈에 띄게 )?향상/, /(?<![가-힣])등급(?:이|을)? ?(?:올|향상|상승)/, /상위권(?:의)? ?(?:성적|성취)/, /만점/],
   '학업태도': ['스스로', '자발적', '주도적으로', '꾸준히', '적극적으로 참여', '예습', '복습', '보충', '심화 학습', '자기주도', '더 알아보', '찾아 읽', '추가로 학습', '의문을 가지'],
   '탐구력': ['탐구', '실험', '보고서', '조사', '분석', '가설', '검증', '연구', '프로젝트', '자료를 수집', '논문', '호기심', '원리', '고찰', '설계'],
   '전공(계열) 관련 교과 이수 노력': ['공동교육과정', '온라인 공동', '소인수', '진로선택', '심화 과목', '추가로 수강', '방과후', '선택하여 이수', '수강 신청', '이수하였', '학교 밖', '대학 연계'],
@@ -561,12 +562,23 @@ const TAG_RULES = {
   '성실성과 규칙준수': ['성실', '책임감', '개근', '꾸준', '맡은 바', '규칙', '약속', '빠짐없이', '끝까지', '묵묵히'],
   '리더십': ['회장', '부회장', '반장', '실장', '부장', '팀장', '조장', '이끌', '주도하여', '기획하고', '동아리장', '학생회', '대표']
 };
+// 짧은 낱말은 낱말 안쪽에서 걸리지 않게 앞 글자를 본다('열성적'의 '성적', '일상위'의 '상위')
+const LEFT_BOUND = new Set(['상위', '팀', '공동', '대표', '부장', '실장', '회장', '반장', '조장', '성실', '규칙', '약속', '희망', '전공', '직업', '장래', '발표', '함께', '소통']);
+const KW_RX = new Map();
+function kwRx(w) {
+  if (w instanceof RegExp) return w;
+  if (!KW_RX.has(w)) KW_RX.set(w, new RegExp((LEFT_BOUND.has(w) ? '(?<![가-힣])' : '') + rxEsc(w)));
+  return KW_RX.get(w);
+}
+const NOT_ACADEMIC = /^(체육|운동|스포츠|음악|미술|연극|예술)/;
 function buildEvidence(items) {
   const ev = {}; Object.keys(TAG_RULES).forEach(k => (ev[k] = []));
   items.forEach((it, idx) => {
     sentences(it.내용).forEach(sent => {
       for (const [k, kws] of Object.entries(TAG_RULES)) {
-        const found = kws.filter(w => sent.includes(w));
+        // 학업성취도는 교과 세특에서만(체육 '기록 향상', 행특 '열성적' 제외)
+        if (k === '학업성취도' && (it.영역 !== '세특' || NOT_ACADEMIC.test(nsp(it.과목 || '')))) continue;
+        const found = [...new Set(kws.map(w => { const m = sent.match(kwRx(w)); return m ? m[0] : null; }).filter(Boolean))];
         if (found.length && ev[k].length < 40) ev[k].push({ idx, sent, kws: found, 영역: it.영역, 학년: it.학년, 과목: it.과목 });
       }
     });
@@ -809,8 +821,8 @@ function recStep3() {
   const R = S.rec, tab = R.tab;
   const t = (k, icn, label) => `<button class="tab mint ${tab === k ? 'on' : ''}" data-act="recTab" data-k="${k}" aria-pressed="${tab === k}">${ic(icn)}${label}</button>`;
   let inner = '';
-  if (tab === 'grade') inner = recGrade(); else if (tab === 'ev') inner = recEvidence(); else if (tab === 'check') inner = '<div id="checkBox">불러오는 중…</div>'; else inner = '<div id="fitBox">불러오는 중…</div>';
-  return `<div class="tabs stick" role="group" aria-label="결과 보기" style="--n:4">${t('grade', 'chart', '성적')}${t('ev', 'search', '기록 근거')}${t('check', 'pen', '스스로 점검')}${t('fit', 'book', '권장과목')}</div>${inner}
+  if (tab === 'grade') inner = recGrade(); else if (tab === 'ev') inner = recEvidence(); else if (tab === 'check') inner = '<div id="checkBox">불러오는 중…</div>'; else if (tab === 'ipg') inner = '<div id="ipgBox">불러오는 중…</div>'; else inner = '<div id="fitBox">불러오는 중…</div>';
+  return `<div class="tabs stick" role="group" aria-label="결과 보기" style="--n:5">${t('grade', 'chart', '성적')}${t('ipg', 'compass', '입결 비교')}${t('ev', 'search', '기록 근거')}${t('check', 'pen', '스스로 점검')}${t('fit', 'book', '권장과목')}</div>${inner}
   <section class="panel navy"><div class="row">
     <button class="btn" data-act="printSum">${ic('print')} 상담 요약 1장</button>
     <button class="btn white" data-act="saveDlg">${ic('lock')} 암호 파일로 저장</button>
@@ -985,9 +997,13 @@ function recEvidence() {
   const tabs = comps.map(([c, list], i) => `<button class="tab ${COL[i]} ${c === tab ? 'on' : ''}" data-act="evTab" data-k="${esc(c)}" aria-pressed="${c === tab}">${esc(c.replace('역량', ''))} <span class="n">${total(list)}</span></button>`).join('');
   const cards = comps[ci][1].map(k => {
     const arr = ev[k] || [], key = 'ev|' + k;
+    // 학업성취도는 문장보다 성적표가 먼저다
+    let gl = '';
+    if (k === '학업성취도') { const all = wavg(R.grades); const terms = [...new Set(R.grades.map(g => g.학년 + '-' + g.학기))].sort().map(t => [t, wavg(R.grades.filter(g => g.학년 + '-' + g.학기 === t))]).filter(x => x[1]);
+      gl = all ? `<div class="note" style="margin:0 0 8px">성적표: 평균 <b>${fmt(all.avg)}등급</b>${terms.length > 1 ? ` · 학기별 ${terms.map(x => fmt(x[1].avg)).join(' → ')}` : ''} · 성취도 A ${R.grades.filter(g => /^A/.test(g.성취도 || '')).length}과목 <button class="btn small white" data-act="recTab" data-k="grade">성적 탭</button></div>` : ''; }
     const body = arr.length ? arr.slice(0, 5).map(evHTML).join('') + (arr.length > 5 ? `<details><summary>문장 더 보기 (${Math.min(arr.length, 15) - 5})</summary>${arr.slice(5, 15).map(evHTML).join('')}</details>` : '')
       : '<p class="muted" style="margin:0">이 항목 문장은 못 찾았어요. 표현이 달라서일 수 있어요.</p>';
-    return `<details class="fold" data-fold="${esc(key)}"${fo(key)}><summary><span class="sumt"><b>${esc(k)}</b><span class="pv">${arr.length ? esc(arr[0].sent) : '찾은 문장 없음'}</span></span><span class="cnt ${arr.length ? '' : 'zero'}">${arr.length}문장</span></summary><div class="fb">${body}</div></details>`;
+    return `<details class="fold" data-fold="${esc(key)}"${fo(key)}><summary><span class="sumt"><b>${esc(k)}</b><span class="pv">${arr.length ? esc(arr[0].sent) : k === '학업성취도' && gl ? '성적표로 확인' : '찾은 문장 없음'}</span></span><span class="cnt ${arr.length ? '' : 'zero'}">${arr.length}문장</span></summary><div class="fb">${gl}${body}</div></details>`;
   }).join('');
   return `<section class="panel mint"><h2>${ic('search')} 기록 근거</h2><p class="one">평가 항목별로 내 학생부 문장을 모았어요. 점수는 매기지 않아요.</p>
     <div class="row" style="margin-bottom:6px">${areaCount ? `<span class="statline">찾은 기록: ${esc(areaCount)}</span>` : '<span class="badge rose">영역을 못 나눴어요</span>'}<span class="spacer"></span>${ORIG ? `<button class="btn small white" data-act="origShow" data-s="">${ic('eye')} 원본 PDF 펼치기</button>` : ''}</div>
@@ -1426,7 +1442,7 @@ function fillUniv() {
       <div class="row"><label class="toggle"><input type="checkbox" data-in="mjRural" ${S.profile.rural ? 'checked' : ''}><span class="sw"></span>농어촌 강조</label><button class="btn small white" data-act="go" data-to="rural">농어촌 체크</button></div></section>`;
   } else if (tab === 'result') {
     body = `<section class="panel vio"><h2>입결 참고</h2>${myBox(my)}
-      ${!off.length && /영남대/.test(uniBase(u)) ? '<p class="note">영남대 입결은 대학 안내에 따라 공식 게시물에서 확인해 주세요. <a href="https://enter.yu.ac.kr/10000023?mode=view&bbs_seq=1223&categorycode=8" target="_blank" rel="noopener noreferrer">2026 수시 입학자 성적(영남대 입학처)</a></p>' : ''}${officialHTML(off, my, u)}${sheetHTML(sh, my, u)}
+      ${!off.length && /영남대/.test(uniBase(u)) ? '<p class="note">영남대 입결은 대학 안내에 따라 공식 게시물에서 확인해 주세요. <a href="https://enter.yu.ac.kr/10000023?mode=view&bbs_seq=1223&categorycode=8" target="_blank" rel="noopener noreferrer">2026 수시 입학자 성적(영남대 입학처)</a></p>' : ''}${officialHTML(off, my, u)}${sheetHTML(sh, my, u)}${schoolCasesHTML(u, M.keys)}
       ${!off.length && !sh.length ? '<div class="empty"><strong>이 대학·학과 입결 자료가 없어요</strong>대학 입학처 자료를 확인해 주세요.</div>' : ''}
       <p class="note">어디가 <b>전형정보</b>에서 이 학과를 펼치면 2026 결과(50%·70% 등급)를 볼 수 있어요. <a href="https://www.adiga.kr/ucp/prc/uni/admssUnivView.do?menuId=PCPRCINF2000" target="_blank" rel="noopener noreferrer">어디가 전형정보 열기</a> <span class="tiny">출처: 한국대학교육협의회</span></p>
       <p class="tiny">합격 가능성을 알려 주는 게 아니에요. 대학마다 반영 과목·방식이 달라요.</p></section>`;
@@ -1511,6 +1527,80 @@ async function fillRural() {
 ACT.ruType = el => { S.rural.type = el.dataset.v; render(); };
 IN.ruChk = el => { S.rural.checks[el.dataset.i] = el.checked; };
 
+
+/* ---------- 학생부 결과: 내 평균과 입결 나란히 (희망 학과 기준) ---------- */
+// 합격 가능성을 말하지 않는다. 같은 기준 값과 내 평균의 숫자 차이만 보여 준다.
+function ipgWords() {
+  const R = S.rec;
+  if (R.ipgQ != null) return R.ipgQ.split(/[,\s]+/).map(w => w.trim()).filter(w => w.length >= 2);
+  const w = [...(R.majorWords || []), ...String(S.profile.interest || '').split(/[,·/\s]+/)].map(x => String(x).trim()).filter(x => x.length >= 2);
+  if (!w.length) {
+    // 희망분야 칸이 비면 진로활동·세특에 가장 자주 나오는 학과 낱말 2개
+    const t = [R.areas && R.areas['진로'], R.areas && R.areas['세특']].filter(Boolean).join(' ');
+    const cnt = IPG_GUESS.map(g => [g[0], g[1].reduce((s, x) => s + (t.split(x).length - 1), 0)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+    cnt.slice(0, 2).forEach(x => w.push(x[0]));
+  }
+  return [...new Set(w)].slice(0, 6);
+}
+const IPG_GUESS = [['간호', ['간호']], ['의예', ['의사', '의학']], ['약학', ['약사', '약학']], ['교육', ['교사', '교육']], ['컴퓨터', ['컴퓨터', '프로그래밍', '개발자']], ['소프트웨어', ['소프트웨어']], ['기계', ['기계']], ['전자', ['전자', '반도체']], ['건축', ['건축']], ['경영', ['경영', '마케팅']], ['경제', ['경제']], ['심리', ['심리', '상담']], ['사회복지', ['복지']], ['화학', ['화학']], ['생명', ['생명', '생물']], ['물리', ['물리']], ['수학', ['수학']], ['영어', ['영어']], ['법학', ['법조', '변호사', '법학']], ['행정', ['행정', '공무원']], ['미디어', ['미디어', '언론', '방송']], ['디자인', ['디자인']], ['체육', ['체육', '스포츠']], ['유아', ['유아']], ['물리치료', ['물리치료']], ['항공', ['항공', '로켓', '우주']], ['신소재', ['신소재', '소재']], ['환경', ['환경']], ['식품', ['식품', '영양']], ['농업', ['농업', '농학']]];
+function ipgPick(rows) {
+  // 같은 전형에서 비교 기준 하나만: 70% > 50% > 평균 순
+  const pri = r => /70/.test(r.성적기준) ? 0 : /50/.test(r.성적기준) ? 1 : /평균/.test(r.성적기준) ? 2 : 3;
+  return rows.filter(r => isFinite(Number(r.성적값)) && String(r.성적값).trim() !== '').sort((a, b) => pri(a) - pri(b))[0];
+}
+async function fillIpg() {
+  const box = $('#ipgBox'); if (!box) return;
+  await need(['공식입결', '전형결과']);
+  const my = myGrade(), words = ipgWords();
+  const hasW = s => { const t = nsp(s); return words.some(w => t.includes(nsp(w))); };
+  const out = [];
+  if (my && words.length) {
+    // 1) 대학 발표·어디가 입결
+    const g = new Map();
+    DS['공식입결'].forEach(r => { if (!hasW(r.모집단위)) return; const k = [r.대학, r.학년도, r.전형명, r.모집단위].join('|'); if (!g.has(k)) g.set(k, []); g.get(k).push(r); });
+    g.forEach(rs => { const p = ipgPick(rs); if (p) out.push({ u: uniBase(p.대학), unit: p.모집단위, tr: p.전형명 || p.전형유형, y: p.학년도, v: Number(p.성적값), crit: p.성적기준 || '기준 미표기', src: /어디가/.test(p.출처유형) ? '어디가' : '대학 발표', rural: /농어촌/.test(p.전형명) }); });
+    // 2) 지식베이스 3개년 정리본(가장 최근 값)
+    const seen = new Set(out.map(o => o.u + '|' + deptKey(o.unit)));
+    DS['전형결과'].forEach(r => {
+      if (!hasW(r.모집단위)) return;
+      const y = ['26', '25', '24'].find(y => isFinite(Number(r[y + '성적1'])) && String(r[y + '성적1']).trim() !== ''); if (!y) return;
+      if (seen.has(uniBase(r.대학) + '|' + deptKey(r.모집단위))) return;
+      out.push({ u: uniBase(r.대학), unit: r.모집단위, tr: r.전형, y: '20' + y, v: Number(r[y + '성적1']), crit: r.기준1 || '기준 미표기', src: '정리본', rural: /농어촌/.test(r.전형) });
+    });
+  }
+  const five = my && my.sys === 5;
+  const cmp = o => five ? gradeMean9(o.v) : o.v;
+  const near = out.map(o => ({ ...o, c: cmp(o) })).filter(o => o.c != null && Math.abs(o.c - my.avg) <= 0.8)
+    .sort((a, b) => (S.profile.rural ? (b.rural - a.rural) : 0) || Math.abs(a.c - my.avg) - Math.abs(b.c - my.avg));
+  const lim = S.rec.ipgMore ? 60 : 12;
+  const trs = near.slice(0, lim).map(o => { const d = o.c - my.avg;
+    return `<tr><td><b>${esc(o.u)}</b><br><span class="tiny">${esc(o.unit)}</span></td><td>${esc(o.tr)}${o.rural ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(o.y)}학년도</span></td>
+      <td class="n"><b>${fmt(o.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(o.c)}</span>` : ''}<br><span class="tiny">${esc(o.crit)}</span></td>
+      <td class="n">${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
+  // 3) 우리 학교 선배 사례(선생님이 이 기기에 불러온 경우만)
+  const cases = (S.teacher.cases || []).filter(c => words.length && hasW(c.학과));
+  const csNear = my ? cases.filter(c => { const v = Number(c.성적); if (!isFinite(v) || !c.성적) return false; const cv = five && /9/.test(c.성적체계 || '9') ? gradeMean9(v) : v; return cv != null && Math.abs(cv - my.avg) <= 0.8; }) : [];
+  const caseHTML = S.teacher.cases && S.teacher.cases.length ? `<h3>우리 학교 선배 사례 <span class="badge vio">이 기기에만 있음</span></h3>
+    ${csNear.length ? `<div class="tbl-wrap"><table><thead><tr><th>대학·학과</th><th>전형</th><th class="n">내신</th><th>결과</th></tr></thead><tbody>${csNear.slice(0, 30).map(c => `<tr><td><b>${esc(c.대학)}</b><br><span class="tiny">${esc(c.학과)}</span></td><td>${esc(c.전형)}<br><span class="tiny">${esc(c.학년도)}</span></td><td class="n">${esc(c.성적)}</td><td>${esc(c.결과)}${c.비식별메모 ? `<br><span class="tiny">${esc(c.비식별메모)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="tiny">이 학과 낱말로 내 평균 근처(±0.8) 선배 사례가 없어요.</p>'}` : '';
+  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
+    ${my ? `<p class="one">내 평균 <b>${fmt(my.avg)}</b> (${my.sys}등급제) 근처(±0.8) 입결만 모았어요.</p>` : '<div class="note">성적표가 있어야 비교할 수 있어요. 성적 탭에서 확인해 주세요.</div>'}
+    <label class="f" for="ipgQ">학과 낱말 <span class="tiny">(희망분야에서 자동, 쉼표로 고칠 수 있어요)</span></label>
+    <div class="row"><input id="ipgQ" type="text" value="${esc(words.join(', '))}" style="flex:1;min-width:200px" placeholder="예: 간호, 기계, 교육"><button class="btn vio" data-act="ipgGo">다시 찾기</button></div>
+    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}
+    ${my && words.length ? (trs ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>대학·모집단위</th><th>전형</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th><th>출처</th></tr></thead><tbody>${trs}</tbody></table></div>
+      ${near.length > lim ? `<button class="btn white small" data-act="ipgMore" style="margin-top:8px">더 보기 (${near.length - lim})</button>` : ''}` : '<div class="empty"><strong>근처 입결을 못 찾았어요</strong>학과 낱말을 바꿔 보세요.</div>') : ''}
+    <p class="tiny" style="margin-top:8px">차이 −는 입결 숫자가 내 평균보다 작다는 뜻이에요(더 높은 등급). 기준(50%·70%·평균)과 전형마다 반영 방식이 달라서 참고로만 보세요.</p>
+    ${caseHTML}</section>`;
+}
+ACT.ipgGo = () => { const i = $('#ipgQ'); S.rec.ipgQ = i ? i.value : ''; S.rec.ipgMore = false; fillIpg(); };
+ACT.ipgMore = () => { S.rec.ipgMore = true; fillIpg(); };
+ACT.ipgOpen = el => { const n = el.dataset.n, u = el.dataset.u; Object.assign(S.mj, { dept: n, deptName: n, keys: [...unitKeys(n)], view: 'univ', univ: u, utab: 'result', uq: '', umore: false }); go('major'); };
+
+function schoolCasesHTML(u, keys) {
+  const cs = (S.teacher.cases || []).filter(c => sameUni(c.대학, u) && (keys || []).some(k => k && nsp(c.학과).includes(k)));
+  if (!cs.length) return '';
+  return `<h3>우리 학교 선배 사례 <span class="badge vio">이 기기에만 있음</span></h3><div class="tbl-wrap"><table><thead><tr><th>학과</th><th>전형</th><th class="n">내신</th><th>결과</th></tr></thead><tbody>${cs.slice(0, 40).map(c => `<tr><td>${esc(c.학과)}</td><td>${esc(c.전형)}<br><span class="tiny">${esc(c.학년도)}</span></td><td class="n">${esc(c.성적 || '-')}</td><td>${esc(c.결과)}${c.비식별메모 ? `<br><span class="tiny">${esc(c.비식별메모)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
 /* ---- 05-interview.js ---- */
 /* ===== ③ 면접 연습 — 모범답안 없음, 내가 먼저 답한다 ===== */
 const IV_DATA = ['면접기준', '면접요소', '면접문항', '면접안내', '기출면접', '질문템플릿', '모집2028'];
@@ -2049,7 +2139,7 @@ ACT.origMask = async () => { if (!ORIG) return; ORIG.view.mask = !ORIG.view.mask
 /* ===== 화면 전환 · 이벤트 · 가상 학생 ===== */
 let VIEW = 'home';
 const VIEWS = {
-  home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') fillFit(); } }],
+  home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') fillFit(); if (S.rec.tab === 'ipg') fillIpg(); } }],
   major: [viewMajor, fillMajor], compare: [viewCompare, fillCompare], rural: [viewRural, fillRural],
   interview: [viewInterview, fillInterview], teacher: [viewTeacher]
 };
