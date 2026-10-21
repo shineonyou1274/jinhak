@@ -1054,6 +1054,7 @@ function gradeVizHTML() {
     <div class="stat mint"><span>전체 평균</span><b>${M.all ? fmt(M.all.avg) : '-'}<small> 등급</small></b><span class="tiny">${M.all ? `등급 과목 ${M.graded} · 전체 ${M.n} · ${M.all.credits}학점 가중` : '등급 있는 과목이 없어요'}</span></div>
     <div class="stat vio"><span>최근 학기${M.latest ? ' ' + esc(M.latest.k) : ''}</span><b>${M.latest ? fmt(M.latest.w.avg) : '-'}<small> 등급</small></b><span class="tiny">${M.terms.length > 1 ? `첫 학기 ${fmt(M.terms[0].w.avg)} → 지금` : '학기가 하나예요'}</span></div>
     <div class="stat sun"><span>가장 좋은 교과군</span><b>${M.best ? esc(M.best.g) : '-'}</b><span class="tiny">${M.best ? `평균 ${fmt(M.best.w.avg)}등급` : ''}</span></div>
+    ${M.all ? busanHTML(M.all.avg, S.rec.system || sysOf(S.profile.curr)) : ''}
     ${M.band ? `<div class="stat apri"><span>5등급 참고</span><b>${fmt(M.band.lo)}~${fmt(M.band.hi)}</b><span class="tiny">공식 환산 아님</span></div>` : ''}
   </div>
   <div class="ctabs" role="group" aria-label="그래프 고르기">${C.map(([k, t]) => `<button class="tab mint ${ck === k ? 'on' : ''}" data-act="cTab" data-k="${k}" aria-pressed="${ck === k}">${t.replace('학기별 ', '').replace(' 평균', '')}</button>`).join('')}</div>
@@ -1729,18 +1730,18 @@ async function fillIpg() {
     });
   }
   const five = my && my.sys === 5;
-  const cmp = o => five ? gradeMean9(o.v) : o.v;
+  const cmp = o => five ? conv9to5(o.v) : o.v;
   const O = my ? gradeOutlook() : null;
   const near = out.map(o => ({ ...o, c: cmp(o) })).filter(o => o.c != null && Math.abs(o.c - my.avg) <= 0.8)
     .sort((a, b) => (S.profile.rural ? (b.rural - a.rural) : 0) || Math.abs(a.c - my.avg) - Math.abs(b.c - my.avg));
   const lim = S.rec.ipgMore ? 60 : 12;
   const trs = near.slice(0, lim).map(o => { const d = o.c - my.avg;
     return `<tr><td><b>${esc(o.u)}</b><br><span class="tiny">${esc(o.unit)}</span></td><td>${esc(o.tr)}${o.rural ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(o.y)}학년도</span></td>
-      <td class="n"><b>${fmt(o.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(o.c)}</span>` : ''}<br><span class="tiny">${esc(o.crit)}</span></td>
+      <td class="n"><b>${fmt(o.v)}</b>${five ? `<br><span class="tiny">5등급 대응≈${fmt(o.c)}</span>` : ''}<br><span class="tiny">${esc(o.crit)}</span></td>
       <td class="n">${Math.abs(d) < 0.005 ? '0.00' : (d > 0 ? '+' : '−') + fmt(Math.abs(d))}${O && O.rem ? `<br><span class="tiny">${needShort(o.c, O)}</span>` : ''}</td><td><span class="badge">${esc(o.src)}</span><br><button class="btn small white" data-act="ipgOpen" data-u="${esc(o.u)}" data-n="${esc(o.unit)}">자세히</button></td></tr>`; }).join('');
   // 3) 우리 학교 선배 사례(선생님이 이 기기에 불러온 경우만)
   const cases = (S.teacher.cases || []).filter(c => words.length && hasW(c.학과));
-  const csNear = my ? cases.filter(c => { const v = Number(c.성적); if (!isFinite(v) || !c.성적) return false; const cv = five && /9/.test(c.성적체계 || '9') ? gradeMean9(v) : v; return cv != null && Math.abs(cv - my.avg) <= 0.8; }) : [];
+  const csNear = my ? cases.filter(c => { const v = Number(c.성적); if (!isFinite(v) || !c.성적) return false; const cv = five && /9/.test(c.성적체계 || '9') ? conv9to5(v) : v; return cv != null && Math.abs(cv - my.avg) <= 0.8; }) : [];
   const caseHTML = S.teacher.cases && S.teacher.cases.length ? `<h3>우리 학교 선배 사례 <span class="badge vio">이 기기에만 있음</span></h3>
     ${csNear.length ? `<div class="tbl-wrap"><table><thead><tr><th>대학·학과</th><th>전형</th><th class="n">내신</th><th>결과</th></tr></thead><tbody>${csNear.slice(0, 30).map(c => `<tr><td><b>${esc(c.대학)}</b><br><span class="tiny">${esc(c.학과)}</span></td><td>${esc(c.전형)}<br><span class="tiny">${esc(c.학년도)}</span></td><td class="n">${esc(c.성적)}</td><td>${esc(c.결과)}${c.비식별메모 ? `<br><span class="tiny">${esc(c.비식별메모)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="tiny">이 학과 낱말로 내 평균 근처(±0.8) 선배 사례가 없어요.</p>'}` : '';
   // 0) 내가 담은 후보: 후보마다 같은 전형 입결 한 줄
@@ -1755,12 +1756,12 @@ async function fillIpg() {
     if (!pick) { const p2 = ipgPick(off); if (p2) pick = { v: Number(p2.성적값), crit: p2.성적기준, y: p2.학년도, src: (/어디가/.test(p2.출처유형) ? '어디가' : '대학 발표'), same: false, tr: p2.전형명 }; }
     return { cd, pick };
   }) : [];
-  const candHTML = candRows.length ? `<h3>내가 담은 후보 ${candRows.length}곳</h3><div class="tbl-wrap"><table><thead><tr><th>후보</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th>${O && O.rem ? '<th>남은 학기에 필요한 평균</th>' : ''}</tr></thead><tbody>${candRows.map(({ cd, pick }) => { const cv = pick ? (five ? gradeMean9(pick.v) : pick.v) : null; const d = cv != null ? cv - my.avg : null;
-    return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td><td class="n">${pick ? `<b>${fmt(pick.v)}</b>${five ? `<br><span class="tiny">5등급 눈금≈${fmt(cv)}</span>` : ''}<br><span class="tiny">${esc(pick.crit || '')} · ${esc(pick.y)} · ${esc(pick.src)}${pick.same ? '' : ' · 다른 전형(' + esc(pick.tr || '') + ')'}</span>` : '<span class="badge">입결 없음</span>'}</td><td class="n">${d == null ? '-' : `<b>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</b>`}</td>${O && O.rem ? `<td>${cv == null ? '-' : needHTML(cv, O)}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>` : (my ? '<p class="tiny">학과·전형 화면에서 후보를 담으면 여기서 내 평균과 나란히 볼 수 있어요.</p>' : '');  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
+  const candHTML = candRows.length ? `<h3>내가 담은 후보 ${candRows.length}곳</h3><div class="tbl-wrap"><table><thead><tr><th>후보</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th>${O && O.rem ? '<th>남은 학기에 필요한 평균</th>' : ''}</tr></thead><tbody>${candRows.map(({ cd, pick }) => { const cv = pick ? (five ? conv9to5(pick.v) : pick.v) : null; const d = cv != null ? cv - my.avg : null;
+    return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td><td class="n">${pick ? `<b>${fmt(pick.v)}</b>${five ? `<br><span class="tiny">5등급 대응≈${fmt(cv)}</span>` : ''}<br><span class="tiny">${esc(pick.crit || '')} · ${esc(pick.y)} · ${esc(pick.src)}${pick.same ? '' : ' · 다른 전형(' + esc(pick.tr || '') + ')'}</span>` : '<span class="badge">입결 없음</span>'}</td><td class="n">${d == null ? '-' : `<b>${d >= 0 ? '+' : '−'}${fmt(Math.abs(d))}</b>`}</td>${O && O.rem ? `<td>${cv == null ? '-' : needHTML(cv, O)}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>` : (my ? '<p class="tiny">학과·전형 화면에서 후보를 담으면 여기서 내 평균과 나란히 볼 수 있어요.</p>' : '');  box.innerHTML = `<section class="panel vio"><h2>${ic('compass')} 내 평균과 입결 나란히</h2>
     ${my ? `<p class="one">내 평균 <b>${fmt(my.avg)}</b> (${my.sys}등급제) 근처(±0.8) 입결만 모았어요.</p>` : '<div class="note">성적표가 있어야 비교할 수 있어요. 성적 탭에서 확인해 주세요.</div>'}
     <label class="f" for="ipgQ">학과 낱말 <span class="tiny">(희망분야에서 자동, 쉼표로 고칠 수 있어요)</span></label>
     <div class="row"><input id="ipgQ" type="text" value="${esc(words.join(', '))}" style="flex:1;min-width:200px" placeholder="예: 간호, 기계, 교육"><button class="btn vio" data-act="ipgGo">다시 찾기</button></div>
-    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${calcCardHTML(S.cands || [])}${O ? goalHTML(O, candRows, near) : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
+    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 부산 고2 누적분포에서 같은 위치의 5등급 값으로 바꿔 나란히 놓았어요(5등급 대응≈). 공식 환산이 아니에요.</div>' : ''}${calcCardHTML(S.cands || [])}${O ? goalHTML(O, candRows, near) : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
     ${my && words.length ? (trs ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>대학·모집단위</th><th>전형</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th><th>출처</th></tr></thead><tbody>${trs}</tbody></table></div>
       ${near.length > lim ? `<button class="btn white small" data-act="ipgMore" style="margin-top:8px">더 보기 (${near.length - lim})</button>` : ''}` : '<div class="empty"><strong>근처 입결을 못 찾았어요</strong>학과 낱말을 바꿔 보세요.</div>') : ''}
     <p class="tiny" style="margin-top:8px">차이 −는 입결 숫자가 내 평균보다 작다는 뜻이에요(더 높은 등급). 기준(50%·70%·평균)과 전형마다 반영 방식이 달라서 참고로만 보세요.</p>
@@ -1794,7 +1795,7 @@ function needHTML(target, O) {
 }
 function goalHTML(O, candRows, near) {
   if (!O.rem) return `<div class="note">수시에 들어가는 5학기(3학년 1학기까지) 성적이 다 나왔어요. 이제 내신 평균은 바뀌지 않아요.</div>`;
-  const picks = [...candRows.filter(c => c.pick).map(c => [uniBase(c.cd.univ) + ' ' + c.cd.unit, O.sys === 5 ? gradeMean9(c.pick.v) : c.pick.v]), ...near.slice(0, 3).map(o => [o.u + ' ' + o.unit, o.c])].filter(x => x[1] != null).slice(0, 6);
+  const picks = [...candRows.filter(c => c.pick).map(c => [uniBase(c.cd.univ) + ' ' + c.cd.unit, O.sys === 5 ? conv9to5(c.pick.v) : c.pick.v]), ...near.slice(0, 3).map(o => [o.u + ' ' + o.unit, o.c])].filter(x => x[1] != null).slice(0, 6);
   const T = S.rec.goalT != null && S.rec.goalT !== '' ? Number(S.rec.goalT) : (picks[0] ? Number(fmt(picks[0][1])) : null);
   const n = T != null && isFinite(T) ? needOf(T, O) : null;
   const gap = n != null ? O.avg - n : null;
@@ -2086,7 +2087,7 @@ ACT.ivPrompt = el => {
 const CASE_COLS = ['대학', '학과', '전형', '학년도', '교육과정', '성적체계', '성적', '결과', '비식별메모'];
 function viewTeacher() {
   const T = S.teacher, cv = T.conv;
-  return vhead('navy', '선생님용 도구', '학교 사례 보관함 · 9→5 참고 환산') + `<section class="panel sun"><h2>9등급 → 5등급 참고 환산</h2>
+  return vhead('navy', '선생님용 도구', '9→5 참고 환산 · 학교 사례 · 학교장추천') + `<section class="panel sun"><h2>9등급 → 5등급 참고 환산</h2>
     <p class="one">분포 겹침으로 낸 참고값이에요. 공식 환산이 아니에요.</p>
     <div class="seg" role="group" aria-label="환산 방식">${[['mean', '9등급 평균'], ['single', '한 과목 등급'], ['pct', '석차 누적비율(%)']].map(([k, l]) => `<button data-act="cvMode" data-v="${k}" aria-pressed="${cv.mode === k}">${l}</button>`).join('')}</div>
     <div class="cvrow"><div><label class="f" for="cvV">값</label><input id="cvV" type="number" step="0.01" value="${esc(cv.v)}" data-in="cvV" placeholder="${cv.mode === 'pct' ? '예: 34' : cv.mode === 'single' ? '예: 4' : '예: 2.53'}"></div>
@@ -2103,7 +2104,7 @@ function viewTeacher() {
     <div class="grid2">${CASE_COLS.map(c => `<div><label class="f" for="cs_${c}">${c}</label>${c === '성적체계' ? `<select id="cs_${c}"><option>9등급제</option><option>5등급제</option><option>미확인</option></select>` : c === '결과' ? `<select id="cs_${c}"><option>결과 미확인</option><option>최초합격</option><option>충원합격</option><option>불합격</option></select>` : `<input id="cs_${c}" type="text" maxlength="${c === '비식별메모' ? 200 : 40}" placeholder="${esc(CASE_PH[c] || '')}">`}</div>`).join('')}</div>
     <p class="tiny">이름·학번 등 사람을 알아볼 수 있는 정보는 넣지 마세요. 적은 인원 학과는 재식별 위험이 있어요.</p>
     <div class="row"><button class="btn" data-act="caseAdd">사례 추가</button></div>
-    <p class="tiny">CSV는 이 열만 읽어요: ${CASE_COLS.join(', ')}</p></div></details></section>`;
+    <p class="tiny">CSV는 이 열만 읽어요: ${CASE_COLS.join(', ')}</p></div></details></section>` + chuchunHTML();
 }
 const CASE_PH = { 대학: '예: 경남대', 학과: '예: 간호학과', 전형: '예: 학생부교과', 학년도: '예: 2026', 교육과정: '예: 2015 개정', 성적: '예: 2.53', 비식별메모: '예: 면접 준비 기간 짧았음' };
 function convOut() {
@@ -2448,7 +2449,7 @@ let VIEW = 'home';
 const VIEWS = {
   home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') { fillFit(); if (typeof fillPath === 'function') fillPath(); } if (S.rec.tab === 'ipg') fillIpg(); } }],
   major: [viewMajor, fillMajor], compare: [viewCompare, fillCompare], rural: [viewRural, fillRural],
-  interview: [viewInterview, fillInterview], teacher: [viewTeacher],
+  interview: [viewInterview, fillInterview], teacher: [viewTeacher, () => fillChuchun()],
   jeongsi: [viewJeongsi, fillJeongsi],
   xuni: [viewXuni, fillXuni]
 };
@@ -2566,15 +2567,15 @@ ACT.demo = () => {
   S.rec = R; go('record'); runRecord('가상 학생이에요. 실제 사람이 아니에요.');
 };
 
-/* 시작 */
-(function init() {
+/* 시작: 뒤 파일(10~14)의 상수까지 다 읽힌 뒤 그린다. 바로 그리면 #teacher 등으로 열 때 초기화 전 상수를 만나 전체가 멈춘다 */
+setTimeout(function init() {
   if (!S.profile.set) { const p = S.profile; p.entry = entryFromGrade(p.grade); if (!p.currManual) p.curr = currFromEntry(p.entry); }
   renderFoot();
   const h = location.hash.slice(1); VIEW = VIEWS[h] ? h : 'home';
   if (VIEW === 'interview' && !S.iv.phase) { }
   render();
   if (!window.JN_DATA) toast('자료 파일(data.js)을 못 불러왔어요.');
-})();
+}, 0);
 
 /* ---- 10-path.js ---- */
 /* ===== 학과 추천 (예전 GAS Path.gs findFits / explorePath / pathAdvice 이식) =====
@@ -3278,3 +3279,85 @@ function calcCardHTML(cands) {
     }).join('')}</tbody></table></div>
     <p class="tiny">반영 평균은 대학 환산점수 전체가 아니에요. 성취도·기본점수·출결은 빠져 있어요. 등급 점수는 5등급제 학생에게만, 원문에 점수표가 있을 때 보여요.</p></div>`;
 }
+
+/* ---- 14-busan-chuchun.js ---- */
+/* ===== 내 평균의 대략 위치 · 학교장추천 전형 모아보기 =====
+   위치: 부산시교육청학력개발원 진로진학지원센터(2026.9) 「5등급제 고1~고2-1 누적 등급평균 분석」
+   - 5등급제 등급평균(現 고2, 98개교 15,978명, 3학기 누적) ↔ 누적비 ↔ 9등급제 등급평균(24학년도 고3, 94개교 15,670명, 5학기)
+   - 학점 가중 전 과목 등급평균 기준. 조사 집단 안의 위치일 뿐, 대학 환산점수나 합격선이 아니다. */
+const BUSAN = [ // [5등급 평균, 누적%, 9등급 평균]
+  [1.00, 0.68, 1.28], [1.04, 1.01, 1.38], [1.08, 1.40, 1.47], [1.16, 2.23, 1.68], [1.24, 3.16, 1.87], [1.33, 4.29, 2.07], [1.42, 5.44, 2.25],
+  [1.50, 6.49, 2.39], [1.66, 8.89, 2.66], [1.83, 12.41, 2.98], [2.00, 16.58, 3.30], [2.16, 20.64, 3.58], [2.33, 25.45, 3.87], [2.50, 31.00, 4.18],
+  [2.66, 36.37, 4.45], [2.83, 42.75, 4.72], [3.00, 49.96, 5.03], [3.16, 56.15, 5.30], [3.33, 62.92, 5.58], [3.50, 69.29, 5.87], [3.66, 74.93, 6.12],
+  [3.83, 80.30, 6.40], [4.00, 85.54, 6.71], [4.16, 89.21, 6.99], [4.33, 92.51, 7.28], [4.50, 94.58, 7.54], [4.66, 96.16, 7.80], [4.83, 97.48, 8.12], [5.00, 100, 9.00]];
+function busanLerp(x, from, to) {
+  const T = BUSAN; if (!isFinite(x)) return null;
+  if (x <= T[0][from]) return T[0][to];
+  for (let i = 1; i < T.length; i++) { const a = T[i - 1], b = T[i]; if (x <= b[from]) { const r = (x - a[from]) / ((b[from] - a[from]) || 1); return a[to] + r * (b[to] - a[to]); } }
+  return T[T.length - 1][to];
+}
+// sys 5: 5등급 평균 → {pct, eq9} / sys 9: 9등급 평균 → {pct, eq5}
+function busanPos(avg, sys) {
+  if (!(avg >= 1)) return null;
+  if (sys === 5) return { pct: busanLerp(avg, 0, 1), eq: busanLerp(avg, 0, 2), eqSys: 9 };
+  return { pct: busanLerp(avg, 2, 1), eq: busanLerp(avg, 2, 0), eqSys: 5 };
+}
+// 9등급 입결 값 → 같은 누적 위치의 5등급 평균(부산 분포 대응). 입결 비교에서 5등급제 학생에게 쓴다
+const conv9to5 = v => { const x = Number(v); return x >= 1 && x <= 9 ? busanLerp(x, 2, 0) : null; };
+function busanHTML(avg, sys) {
+  const p = busanPos(avg, sys); if (!p) return '';
+  const pctTxt = p.pct < 1 ? '1%↓' : `<small>상위</small> ${p.pct < 10 ? p.pct.toFixed(1) : Math.round(p.pct)}%`;
+  return `<div class="stat apri"><span>내 대략 위치</span><b>${pctTxt}</b><span class="tiny">${p.eqSys}등급제로 치면 약 ${fmt(p.eq)} · 부산 고2 15,978명 분포</span></div>`;
+}
+
+/* --- 학교장추천: 주요 15개 대학 2027→2028 변화 (인천제일고 임병훈 정리, 2026.10.14) --- */
+const CHUCHUN15 = [
+  ['서울대', '지역균형', '종합', '①서류100(3배수) ②서류70+면접30', '같음', '인 1.29~1.34 · 자 1.22~1.27', '인·자 3개합7(탐2평)', '최저 없음 → 신설', '3명', '고3', '514→728 (▲214)'],
+  ['연세대', '추천형', '교과', '①교과100(5배수) ②교과80+서류20', '교과100', '인 1.37~1.41 · 자 1.24~1.26', '인 2개합4(국/수1)·자 2개합5(수필)·영3·史4', '같음', '10명', '고3', '512→564 (▲52)'],
+  ['고려대', '학교추천', '교과', '교과80+서류20', '교과90+서류10', '인 1.42~1.46 · 자 1.29~1.32', '인·자 폐지, 의 4개합5(탐1)史4', '인·자 3개합7(탐1)史4', '12명', '고3', '650→672 (▲21)'],
+  ['성균관대', '추천인재', '교과', '정량70+정성30', '정량80+정성20', '인 1.67~1.71 · 자 1.52~1.56', '3개합7(탐탐), 일부 학과 3개합6', '3개합7(탐2)', '무제한', '고3', '419→415 (▼4)'],
+  ['서강대', '고교장추천', '교과', '교과90+출결10(등급80+성취10)', '교과100', '인 1.52~1.56 · 자 1.44~1.46', '3개 각 3등급, 史4', '3개 각 3등급', '무제한', '고3', '180 유지'],
+  ['한양대', '교과추천형', '교과', '교과60+종합40', '교과90+정성10', '인 1.63~1.65 · 자 1.44~1.48', '인 3개 각3(탐1)·자 수포함 3개 각3', '3개합7(탐1)', '무제한', '고3', '346→506 (▲160)'],
+  ['이화여대', '고교추천', '교과', '교과85+서류15', '교과100', '인 1.61~1.70 · 자 1.45~1.50', '3개합7(탐1)', '2개합5(탐1)', '20명', '고3', '377 유지'],
+  ['중앙대', '지역균형', '교과', '교과90+출결10', '같음', '인 1.74~1.79 · 자 1.50~1.53', '3개합7(탐탐), 약 4개합5(탐탐)', '3개합7(탐1), 약 4개합5(과1)', '20명', '고3', '508→505 (▼3)'],
+  ['경희대', '지역균형', '교과', '교과70+종합30', '같음', '인 서1.88 국2.32 · 자 서1.53 국1.76', '2개합5(탐1)史5, 의치한약 3개4', '2개합5(탐2)史5', '무제한', '고3', '604→580 (▼24)'],
+  ['한국외대', '학교장추천', '교과', '교과70+서류30', '교과100', '서울인문 평균 982.78(환산)', '서울 2개합5(탐1), 글로벌 2개합6', '서울 2개합4, 글로벌 2개합6', '무제한', '고3', '370→375 (▲5)'],
+  ['서울시립대', '지역균형', '교과', '교과60+서류40', '교과80+정성20', '인 1.89~1.93 · 자 1.72~1.76', '3개합7(탐1)+史4', '3개합8(탐1)+史4', '무제한', '고3', '254→346 (▲92)'],
+  ['건국대', 'KU지역균형', '교과', '정량70+정성30', '같음', '인 1.95~2.00 · 자 1.77~1.83', '3개합8(탐1), 수의 3개합4', '최저 없음 → 신설', '무제한', '제한 없음', '345→346 (▲1)'],
+  ['동국대', '학교장추천', '교과', '교과70+서류30', '같음', '인 1.55(全2.10) · 자 1.43(全2.00)', '최저 없음', '최저 없음', '무제한', '제한 없음', '409→470 (▲61)'],
+  ['홍익대', '학교장추천', '교과', '교과95+출결5', '교과100', '인 1.95~1.96 · 자 1.90~1.96', '2개합5(탐1)+史4', '같음', '무제한', '고3', '307→420 (▲113)'],
+  ['숙명여대', '지역균형선발', '교과', '교과70+서류30', '같음', '인 1.92~1.98 · 자 1.69~1.75', '인·자 없음, 약 수포함 3개5', '같음', '무제한', '고3', '287→314 (▲27)']
+];
+function chuchunHTML() {
+  const rows = CHUCHUN15.map(r => `<tr><td><b>${esc(r[0])}</b><br><span class="tiny">${esc(r[1])} · ${esc(r[2])}</span></td><td>${esc(r[3])}<br><span class="tiny">2027: ${esc(r[4])}</span></td><td class="tiny">${esc(r[5])}</td><td>${esc(r[6])}<br><span class="tiny">2027: ${esc(r[7])}</span></td><td>${esc(r[8])}<br><span class="tiny">${esc(r[9])}</span></td><td class="n tiny">${esc(r[10])}</td></tr>`).join('');
+  return `<section class="panel apri"><h2>${ic('list')} 학교장추천 전형 모아보기</h2>
+    <p class="one">추천 대상자를 고를 때 보세요. 2028 시행계획 기준(잠정)이에요.</p>
+    <details class="fold" data-fold="ch15"${fo('ch15', true)}><summary><span class="sumt"><b>서울 주요 15개 대학 2027→2028 변화</b><span class="pv">정리: 인천제일고 임병훈 · 입결은 어디가 2026 50~70%</span></span></summary><div class="fb">
+      <div class="tbl-wrap"><table><thead><tr><th>대학·전형</th><th>2028 전형방법</th><th>2026 입결</th><th>2028 수능최저</th><th>추천 인원·자격</th><th class="n">모집인원 2027→2028</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="tiny">입결은 9등급제(2015 개정) 값이에요. 2028은 교과에도 서류·정성평가가 늘어 그대로 비교하기 어려워요.</p></div></details>
+    <div id="chAll"><p class="tiny">전국 학교장추천 전형을 불러오는 중…</p></div></section>`;
+}
+async function fillChuchun() {
+  const box = $('#chAll'); if (!box) return;
+  await need(['수시2028C']);
+  const T = S.teacher, q = T.chQ || '', reg = T.chReg || 'all';
+  const terms = smartTerms(q);
+  // 학교장(고교) 추천이 필요한 전형만: 자기추천·교역자/지도자 추천은 뺀다
+  const rows = (DS['수시2028C'] || []).filter(x => { const t = (x.전형명 || '') + ' ' + (x.지원자격 || ''); if (/자기추천|교역자|지도자|목회자|성직자/.test(x.전형명 || '')) return false; return /학교장|고교장|학교\s*추천|고교\s*추천|추천형/.test(t) && (String(x._대상 || '').includes('학교장추천') || /학교장|고교장|학교추천|고교추천|추천형|지역균형/.test(x.전형명 || '')); });
+  const inReg = x => reg === 'all' || (reg === 'buk' ? isBUK(x.대학명) : String(x.광역 || x.지역 || '').includes(reg));
+  const g = new Map();
+  rows.forEach(x => { if (!inReg(x) || (terms.length && !smartHit(terms, x.대학명 + ' ' + x.전형명 + ' ' + x.모집단위))) return; const k = x.대학명 + '|' + x.전형명; if (!g.has(k)) g.set(k, { u: x.대학명, t: x.전형명, ty: x._유형 || x.전형유형, n: 0, units: 0, min: new Set(), qual: x.지원자격, how: howText(x) }); const o = g.get(k); o.n += +x.모집인원 || 0; o.units++; o.min.add(/^(없음|-|)$/.test(String(x.수능최저학력기준 || '').trim()) ? '없음' : '있음'); });
+  const list = [...g.values()].sort((a, b) => a.u.localeCompare(b.u, 'ko'));
+  const lim = T.chMore ? 400 : 30;
+  const regs = [['all', '전국'], ['buk', '부울경'], ['영남', '영남'], ['서울', '서울'], ['경기', '경기·인천'], ['충청', '충청'], ['호남', '호남·제주'], ['강원', '강원']];
+  box.innerHTML = `<h3>전국 학교장추천 전형 찾기 <span class="badge apri">${list.length}개 전형</span></h3>
+    <div class="row"><input id="chQ" type="search" data-in="chQ" value="${esc(q)}" placeholder="대학·학과 (예: 부산대, 간호)" style="flex:1;min-width:180px"></div>
+    <div class="hitchips" style="margin-top:6px">${regs.map(([k, l]) => `<button class="chip ${reg === k ? 'on' : ''}" data-act="chReg" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>대학·전형</th><th class="n">인원</th><th>전형방법</th><th>최저</th><th>지원자격(추천)</th></tr></thead><tbody>
+    ${list.slice(0, lim).map(o => `<tr><td><b>${esc(uniBase(o.u))}</b><br><span class="tiny">${esc(o.t)} · ${esc(o.ty || '')}</span></td><td class="n">${o.n}<br><span class="tiny">${o.units}개 모집단위</span></td><td class="tiny">${esc(o.how || '-')}</td><td>${[...o.min].map(m => `<span class="badge ${m === '없음' ? 'mint' : 'sun'}">${m}</span>`).join(' ')}</td><td class="tiny">${esc(String(o.qual || '').slice(0, 140))}${String(o.qual || '').length > 140 ? '…' : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${list.length > lim ? `<button class="btn white small" data-act="chMore" style="margin-top:8px">더 보기 (${list.length - lim})</button>` : ''}
+    <p class="tiny">카페 정리본(2028 시행계획) 기준. 추천 인원과 자격은 대학 모집요강에서 꼭 다시 확인하세요.</p>`;
+}
+IN.chQ = el => { S.teacher.chQ = el.value; S.teacher.chMore = false; clearTimeout(IN.chQ._t); IN.chQ._t = setTimeout(() => fillChuchun().then(() => { const i = $('#chQ'); if (i) { i.focus(); const v = i.value; i.value = ''; i.value = v; } }), 300); };
+ACT.chReg = el => { S.teacher.chReg = el.dataset.v; S.teacher.chMore = false; fillChuchun(); };
+ACT.chMore = () => { S.teacher.chMore = true; fillChuchun(); };
