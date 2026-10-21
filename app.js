@@ -1585,11 +1585,12 @@ function fillUniv() {
       const ms = minFor(u, r), iv = ivFor(u, r), ru = isRural(r.전형);
       const inC = S.cands.some(c => c.univ === u && c.전형 === r.전형 && c.unit === r.모집단위);
       return `<tr class="${ru && S.profile.rural ? 'hl' : ''}${iv ? '' : ' noiv'}"><td data-label="유형"><div><span class="badge ${r.유형 === '교과' ? 'mint' : r.유형 === '종합' ? 'vio' : r.유형 === '논술' ? 'apri' : 'sun'}">${esc(r.유형)}</span></div></td>
-        <td data-label="전형"><div><b>${esc(r.전형)}</b>${ru ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(r.모집단위)}</span>${(() => { const x = cafeRow(u, r); const h = x ? howText(x) : ''; return h ? `<br><span class="how">${esc(h)}</span>` : ''; })()}</div></td><td class="n" data-label="인원"><div>${esc(r.인원)}</div></td>
-        <td data-label="수능최저"><div>${ms ? minText(ms) : (() => { const x = cafeRow(u, r); const t = x && String(x.수능최저학력기준 || '').trim(); return t ? (/^(없음|-|미적용)$/.test(t) ? '<span class="badge mint">없음</span>' : `<span class="tiny">${esc(t.length > 120 ? t.slice(0, 120) + '…' : t)}</span>`) : minText(ms); })()}</div></td><td class="ivc" data-label="면접"><div>${iv ? `<span class="badge vio" title="${esc(iv[0].면접방식 || '')}">면접</span>` : '<span class="tiny">—</span>'}</div></td>
+        <td data-label="전형"><div><b>${esc(r.전형)}</b>${ru ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(r.모집단위)}</span>${(() => { const x = cafeRow(u, r); const h = x ? howText(x) : ''; const rc = x && /교과/.test(x._유형 || x.전형유형 || '') ? refCalc(refRule(x.반영교과)) : null; return (h ? `<br><span class="how">${esc(h)}</span>` : '') + (rc ? `<br><span class="tiny myref">이 대학 기준 내 평균 <b>${fmt(rc.avg)}</b> (${esc(rc.label)})</span>` : ''); })()}</div></td><td class="n" data-label="인원"><div>${esc(r.인원)}</div></td>
+        <td data-label="수능최저"><div>${(() => { const x = cafeRow(u, r); const b = x && x.수능최저학력기준 ? csatBadge(x.수능최저학력기준) : ''; return b ? b.trim() + '<br>' : ''; })()}${ms ? minText(ms) : (() => { const x = cafeRow(u, r); const t = x && String(x.수능최저학력기준 || '').trim(); return t ? (/^(없음|-|미적용)$/.test(t) ? '<span class="badge mint">없음</span>' : `<span class="tiny">${esc(t.length > 120 ? t.slice(0, 120) + '…' : t)}</span>`) : minText(ms); })()}</div></td><td class="ivc" data-label="면접"><div>${iv ? `<span class="badge vio" title="${esc(iv[0].면접방식 || '')}">면접</span>` : '<span class="tiny">—</span>'}</div></td>
         <td class="cdc" data-label="후보"><button class="cand ${inC ? 'on' : ''}" data-act="candAdd" data-u="${esc(u)}" data-t="${esc(r.전형)}" data-n="${esc(r.모집단위)}" data-y="${esc(r.유형)}" data-c="${esc(r.인원)}" data-k="${esc(r.모집단위키)}" aria-pressed="${inC}" aria-label="${esc(r.전형)} ${inC ? '후보에서 빼기' : '후보에 담기'}">${inC ? ic('check') + '담음' : ic('plus') + '담기'}</button></td></tr>`;
     }).join('');
     body = `<section class="panel apri"><h2>2028 전형 <span class="badge sun">시행계획 기준(잠정)</span></h2>
+      <details class="fold" data-fold="mockU"${fo('mockU', !Object.values(S.profile.mock || {}).some(x => x))}><summary><span class="sumt"><b>${ic('check')} 수능최저 바로 점검</b><span class="pv">${Object.values(S.profile.mock || {}).some(x => x) ? '모의고사 등급 입력됨 · 표에 충족 여부가 나와요' : '모의고사 등급을 넣으면 표에 충족 여부가 나와요'}</span></span></summary><div class="fb">${mockHTML()}</div></details>
       ${src ? `<p class="tiny">출처: ${esc(src.출처)} ${src.상태 && src.상태 !== 'ok' ? '· ' + esc(src.상태) : ''}</p>` : ''}
       <div class="tbl-wrap"><table class="rt"><thead><tr><th>유형</th><th>전형</th><th class="n">인원</th><th>수능최저</th><th>면접</th><th>후보</th></tr></thead><tbody>${trs}</tbody></table></div>
       <p class="tiny">수능최저·면접은 전형 이름이 같은 자료를 붙였어요. 이름이 다르면 '이름이 비슷한 전형 기준'으로 표시해요. 꼭 모집요강으로 확인해 주세요.</p>
@@ -1704,7 +1705,7 @@ function ipgPick(rows) {
 }
 async function fillIpg() {
   const box = $('#ipgBox'); if (!box) return;
-  await need(['공식입결', '전형결과']);
+  await need(['공식입결', '전형결과', '수시2028C']);
   const my = myGrade(), words = ipgWords();
   const hasW = s => { const t = nsp(s); return words.some(w => t.includes(nsp(w))); };
   const out = [];
@@ -1754,7 +1755,7 @@ async function fillIpg() {
     ${my ? `<p class="one">내 평균 <b>${fmt(my.avg)}</b> (${my.sys}등급제) 근처(±0.8) 입결만 모았어요.</p>` : '<div class="note">성적표가 있어야 비교할 수 있어요. 성적 탭에서 확인해 주세요.</div>'}
     <label class="f" for="ipgQ">학과 낱말 <span class="tiny">(희망분야에서 자동, 쉼표로 고칠 수 있어요)</span></label>
     <div class="row"><input id="ipgQ" type="text" value="${esc(words.join(', '))}" style="flex:1;min-width:200px" placeholder="예: 간호, 기계, 교육"><button class="btn vio" data-act="ipgGo">다시 찾기</button></div>
-    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${O ? goalHTML(O, candRows, near) : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
+    ${five ? '<div class="warn">입결은 9등급제(2015 개정) 값이에요. 5등급 눈금 값으로 바꿔 나란히 놓았어요. 공식 환산이 아니에요.</div>' : ''}${calcCardHTML(S.cands || [])}${O ? goalHTML(O, candRows, near) : ''}${candHTML}<h3>희망 학과 근처 입결</h3>
     ${my && words.length ? (trs ? `<div class="tbl-wrap" style="margin-top:10px"><table><thead><tr><th>대학·모집단위</th><th>전형</th><th class="n">입결 (기준)</th><th class="n">내 평균과 차이</th><th>출처</th></tr></thead><tbody>${trs}</tbody></table></div>
       ${near.length > lim ? `<button class="btn white small" data-act="ipgMore" style="margin-top:8px">더 보기 (${near.length - lim})</button>` : ''}` : '<div class="empty"><strong>근처 입결을 못 찾았어요</strong>학과 낱말을 바꿔 보세요.</div>') : ''}
     <p class="tiny" style="margin-top:8px">차이 −는 입결 숫자가 내 평균보다 작다는 뜻이에요(더 높은 등급). 기준(50%·70%·평균)과 전형마다 반영 방식이 달라서 참고로만 보세요.</p>
@@ -1828,7 +1829,11 @@ function cafeRow(u, r) {
   if (!DS['수시2028C']) return null;
   const list = cafeIdx().get(uniBase(u)) || []; const un = nsp(r.모집단위), dk = deptKey(r.모집단위);
   const c = list.filter(x => nsp(x.모집단위) === un || deptKey(x.모집단위) === dk); if (!c.length) return null;
-  return c.find(x => nsp(x.전형명) === nsp(r.전형)) || c.find(x => sameTrack(x.전형명, r.전형)) || null;
+  // '학생부교과(지역인재전형)' ↔ '지역인재전형'처럼 바깥 유형 이름을 벗겨 비교하고, 유형(교과/종합)이 같은 것만 이름 포함으로 맞춘다
+  const tkey = s => nsp(String(s || '').replace(/^(학생부\s*(?:교과|종합)|실기\/?실적|논술)\s*\((.+?)\)(?:_.*)?$/, '$2')).replace(/\(.*?\)/g, '').replace(/전형$/, '');
+  const ty = String(r.유형 || ''), sameTy = x => !ty || String(x._유형 || x.전형유형 || '').includes(ty);
+  const k = tkey(r.전형);
+  return c.find(x => tkey(x.전형명) === k) || c.find(x => sameTy(x) && k.length >= 3 && (tkey(x.전형명).includes(k) || k.includes(tkey(x.전형명)) && tkey(x.전형명).length >= 3)) || null;
 }
 function howText(x) {
   const part = st => [['학생부교과', '학생부'], ['서류', '서류'], ['면접', '면접'], ['논술', '논술'], ['실기', '실기']].map(([c, l]) => { const v = x[st + '_' + c + '(%)']; return v && +v > 0 ? `${l} ${v}%` : ''; }).filter(Boolean);
@@ -3101,3 +3106,152 @@ ACT.xuOpen = (el, e) => {
   if (e) e.preventDefault();
   const y = window.scrollY; fillXuni().then(() => window.scrollTo(0, y));
 };
+
+/* ---- 13-calc.js ---- */
+/* ===== 대학별 반영 교과 평균 · 수능최저 충족 점검 =====
+   근거: 카페 정리본(2028 시행계획)의 '반영교과'·'수능최저학력기준' 문장.
+   - 반영 교과 평균: 그 대학이 보는 교과만 골라 학점 가중 평균(상위 N과목이면 N개). 대학 환산점수 전체가 아니라 '이 대학 기준 내 평균'.
+   - 등급 점수: 문장에 5단계 점수표(예: 100·90·80·70·0)가 있고 5등급제 학생이면 등급 점수 평균을 참고로 보여 준다(성취도·기본점수 제외).
+   - 수능최저: '탐구 1과목 중 2개 영역 등급 합 7 이내' 같은 흔한 형식만 자동 판정, 못 읽으면 '직접 확인'. */
+
+const REF_GROUPS = [['국어', /국어/], ['수학', /수학/], ['영어', /영어/], ['사회', /사회/], ['과학', /과학/], ['한국사', /한국사/], ['기술·가정/정보', /기술|정보/], ['제2외국어/한문', /제2외국어|한문/]];
+function refRule(text) {
+  const t = String(text || '').replace(/(\d),(\d{3})/g, '$1$2');
+  if (!t || /종합평가|정성평가\(서류|서류 종합/.test(t) && !/석차|등급/.test(t)) return null;
+  const head = t.split(/\s\/\s/)[0];
+  let groups = REF_GROUPS.filter(([, re]) => re.test(head)).map(([g]) => g);
+  if (/수학\s*미반영/.test(t)) groups = groups.filter(g => g !== '수학');
+  if (/과학\s*미반영/.test(t)) groups = groups.filter(g => g !== '과학');
+  if (/사회\s*미반영/.test(t)) groups = groups.filter(g => g !== '사회');
+  if (!groups.length) return null;
+  // '진로선택 상위 3과목' 같은 가산 항목은 빼고 본 반영의 상위 N과목만 잡는다
+  const top = [...head.matchAll(/(?:상위|우수)\s*(\d{1,2})\s*(?:개\s*)?과목/g)].find(m => !/(진로|융합|성취도|가산)[^,]{0,8}$/.test(head.slice(0, m.index))) || head.match(/(?:^|[^\d])(\d{1,2})\s*과목\s*[:：]/);
+  const per = head.match(/(?:교과별|각)[^,]{0,15}?(\d)\s*과목씩/) || head.match(/교과별\s*상위\s*(\d)\s*과목/);
+  const total = head.match(/총\s*(\d{1,2})\s*과목/);
+  const socOrSci = /사회[^,]{0,24}?(또는|\/)\s*과학/.test(head);
+  const unweighted = /(?:이수\s*)?(?:학점|단위수?)\s*미반영/.test(t);
+  // 5단계 점수표: 100·90·80·70·0 / 200·160·120·80·0 / 50/40/30/10/0
+  let pts = null; const pm = t.match(/(\d{1,4}(?:\.\d+)?)\s*[·\/,]\s*(\d{1,4}(?:\.\d+)?)\s*[·\/,]\s*(\d{1,4}(?:\.\d+)?)\s*[·\/,]\s*(\d{1,4}(?:\.\d+)?)\s*[·\/,]\s*(\d{1,4}(?:\.\d+)?)(?!\s*[·\/,]\s*\d)/);
+  if (pm) { const a = pm.slice(1, 6).map(Number); if (a[0] > a[4] && a.every((v, i) => i === 0 || v <= a[i - 1])) pts = a; }
+  const ratio = t.match(/등급\s*(\d{2})%\s*\+\s*성취도\s*(\d{2})%/);
+  return { groups, top: top ? +top[1] : null, per: per ? +per[1] : null, total: total ? +total[1] : null, socOrSci, unweighted, pts, ratio: ratio ? [+ratio[1], +ratio[2]] : null, text: t };
+}
+function gradeGroup(r) {
+  const s = (r.교과 || '') + ' ' + (r.과목 || '');
+  if (/^한국사/.test(r.과목 || '') || /^한국사/.test(r.교과 || '')) return '한국사';
+  if (/국어/.test(r.교과 || '')) return '국어';
+  if (/수학/.test(r.교과 || '')) return '수학';
+  if (/영어/.test(r.교과 || '')) return '영어';
+  if (/사회/.test(r.교과 || '')) return '사회';
+  if (/과학/.test(r.교과 || '') && !/탐구실험/.test(r.과목 || '')) return '과학';
+  if (/기술|정보/.test(s)) return '기술·가정/정보';
+  if (/외국어|한문/.test(s)) return '제2외국어/한문';
+  return '';
+}
+function refCalc(rule) {
+  if (!rule || !S.rec.analyzed) return null;
+  const sys = S.rec.system || sysOf(S.profile.curr);
+  const rows = (S.rec.grades || []).filter(r => {
+    const g = Number(r.등급), c = Number(r.학점); if (!(g >= 1 && g <= 9 && c > 0)) return false;
+    if (`${r.학년}-${r.학기}` > '3-1') return false;
+    const gg = gradeGroup(r); if (!gg) return false;
+    if (gg === '한국사') return rule.groups.includes('한국사') || rule.groups.includes('사회');
+    return rule.groups.includes(gg);
+  });
+  if (!rows.length) return null;
+  let use = rows;
+  if (rule.per) { const gk = r => { const g = gradeGroup(r) === '한국사' ? '사회' : gradeGroup(r); return rule.socOrSci && (g === '사회' || g === '과학') ? '사회/과학' : g; }; const by = {}; rows.forEach(r => { (by[gk(r)] = by[gk(r)] || []).push(r); }); use = Object.values(by).flatMap(a => a.sort((x, y) => x.등급 - y.등급).slice(0, rule.per)); if (rule.total) use = use.sort((x, y) => x.등급 - y.등급).slice(0, rule.total); }
+  else if (rule.top) use = rows.slice().sort((x, y) => x.등급 - y.등급).slice(0, rule.top);
+  let s = 0, w = 0, ps = 0;
+  use.forEach(r => { const c = rule.unweighted ? 1 : Number(r.학점); s += Number(r.등급) * c; w += c; if (rule.pts && sys === 5) ps += (rule.pts[Number(r.등급) - 1] ?? 0) * c; });
+  const label = rule.groups.map(g => g.replace(/·.*|\/.*/, '')).join('·') + (rule.per ? ` 교과별 상위 ${rule.per}과목` + (rule.total ? ` (총 ${rule.total})` : '') : rule.top ? ` 상위 ${rule.top}과목` : '');
+  return { avg: s / w, n: use.length, label, pts: rule.pts && sys === 5 ? ps / w : null, ptsMax: rule.pts ? rule.pts[0] : null, sys };
+}
+
+/* --- 수능최저 --- */
+function csatRule(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  if (!t.trim()) return null;
+  if (/^(없음|미적용|-)/.test(t.trim()) || /(최저학력기준|자격기준)[^,.]{0,6}(없음|미적용|적용하지 않음)/.test(t) && !/등급\s*(합|이내)/.test(t)) return { none: true, note: /에만 적용|제외/.test(t) ? t : '' };
+  const r = { k: null, sum: null, each: null, must: [], tam: 'best', sciOnly: false, socOnly: false, hist: null, text: t };
+  let m;
+  if ((m = t.match(/(\d)\s*개\s*영역\s*(?:의\s*)?(?:등급\s*)?(?:의\s*)?합(?:산)?\s*(?:이\s*)?(\d{1,2})\s*(?:등급\s*)?이내/))) { r.k = +m[1]; r.sum = +m[2]; }
+  else if ((m = t.match(/(\d)\s*개\s*영역\s*(?:각\s*)?(?:등급\s*)?(\d)\s*(?:등급\s*)?이내/))) { r.k = +m[1]; r.each = +m[2]; }
+  else if ((m = t.match(/(?:등급\s*)?합(?:산)?\s*(?:이\s*)?(\d{1,2})\s*(?:등급\s*)?이내/))) { r.sum = +m[1]; const k = t.match(/(\d)\s*개\s*(?:영역|과목)/); if (k) r.k = +k[1]; }
+  if ((m = t.match(/각\s*(\d)\s*등급\s*이내/)) && !r.sum) { r.each = +m[1]; const k = t.match(/(\d)\s*개\s*영역/); if (k) r.k = +k[1]; }
+  if (/수학\s*(?:포함|필수|의무)|수학\s*\(필수\)|\+\s*수학/.test(t)) r.must.push('수');
+  if (/영어\s*(?:포함|필수)/.test(t)) r.must.push('영');
+  const t2 = t.replace(/(사회탐구|통합사회)\s*미반영/g, '').replace(/\([^)]*수능\s*탐구[^)]*\)|\(사회탐구·과학탐구=[^)]*\)|※\s*탐구\s*:\s*통합사회·통합과학[^,)]*/g, '');
+  if (/과학탐구|과탐|통합과학/.test(t2) && !/사회탐구|사탐|통합사회|사회\s*[\/·,]\s*과학|사회·과학|사회\/과학/.test(t2)) r.sciOnly = true;
+  if ((m = t.match(/영어\s*(\d)\s*등급\s*이내/))) r.eng = +m[1];
+  r.special = /반영\s*시|상향|등급으로\s*반영|또는|평균/.test(t) && !/2\s*과목\s*평균/.test(t);
+  if (/2\s*과목\s*평균|평균\s*반영/.test(t) && !/상위\s*1/.test(t)) r.tam = 'avg';
+  if ((m = t.match(/한국사\s*(\d)\s*등급\s*이내/))) r.hist = +m[1];
+  if (!r.k && (r.sum || r.each)) { if (/상위\s*(\d)/.test(t)) r.k = +t.match(/상위\s*(\d)/)[1]; }
+  if (!r.k || (!r.sum && !r.each)) return { unknown: true, text: t };
+  return r;
+}
+function csatCheck(rule, mk) {
+  if (!rule) return null;
+  if (rule.none) return { ok: true, none: true };
+  if (rule.unknown) return { unknown: true };
+  const v = k => { const x = Number(mk[k]); return x >= 1 && x <= 9 ? x : null; };
+  const sa = v('사'), sc = v('과');
+  const tam = rule.sciOnly ? sc : rule.tam === 'avg' ? (sa && sc ? Math.floor((sa + sc) / 2) : null) : (sa || sc ? Math.min(sa || 9, sc || 9) : null);
+  const pool = [['국', v('국')], ['수', v('수')], ['영', v('영')], ['탐', tam]];
+  if (pool.some(([n, x]) => x == null && (rule.must.includes(n)))) return { need: true };
+  const have = pool.filter(([, x]) => x != null);
+  if (have.length < rule.k) return { need: true };
+  const must = have.filter(([n]) => rule.must.includes(n)), rest = have.filter(([n]) => !rule.must.includes(n)).sort((a, b) => a[1] - b[1]);
+  const pick = [...must, ...rest].slice(0, Math.max(rule.k, must.length));
+  const sum = pick.reduce((s, [, x]) => s + x, 0);
+  let ok = rule.sum ? sum <= rule.sum : pick.every(([, x]) => x <= rule.each);
+  let histOk = true; if (rule.hist) { const h = v('한'); histOk = h != null && h <= rule.hist; ok = ok && histOk; }
+  if (rule.eng) { const e = v('영'); if (e == null || e > rule.eng) { ok = false; histOk = histOk && true; } }
+  return { ok, sum, pick: pick.map(([n, x]) => n + x).join('+'), gap: rule.sum ? sum - rule.sum : null, histOk, rule };
+}
+function csatBadge(text) {
+  const mk = S.profile.mock || {}; if (!Object.values(mk).some(x => x)) return '';
+  const res = csatCheck(csatRule(text), mk); if (!res) return '';
+  if (res.none) return '';
+  if (res.unknown) return ' <span class="badge">직접 확인</span>';
+  if (res.need) return ' <span class="badge">등급 더 넣기</span>';
+  return res.ok ? ` <span class="badge mint" title="${esc(res.pick)}">충족 ${esc(res.pick)}${res.rule.special ? ' · 원문 확인' : ''}</span>` : ` <span class="badge rose" title="${esc(res.pick)}">${res.gap > 0 ? `합 ${res.sum} · ${res.gap}등급 모자람` : res.histOk ? '미충족' : '한국사 미충족'}</span>`;
+}
+const MOCK_KEYS = [['국', '국어'], ['수', '수학'], ['영', '영어'], ['사', '통합사회'], ['과', '통합과학'], ['한', '한국사']];
+function mockHTML() {
+  const mk = S.profile.mock || {};
+  return `<div class="mock"><b>내 모의고사 등급</b> <span class="tiny">(9등급 · 넣으면 수능최저를 바로 점검해요)</span>
+    <div class="mockrow">${MOCK_KEYS.map(([k, l]) => `<label><span>${l}</span><input type="number" min="1" max="9" inputmode="numeric" data-in="mock" data-k="${k}" value="${esc(mk[k] || '')}" aria-label="${l} 등급"></label>`).join('')}</div>
+    <p class="tiny" style="margin:4px 0 0">2015 교육과정 학생은 탐구 2과목 등급을 사회·과학 칸에 넣어 주세요. 이 기기에만 저장돼요.</p></div>`;
+}
+IN.mock = el => {
+  S.profile.mock = S.profile.mock || {}; const v = el.value.trim(); S.profile.mock[el.dataset.k] = /^[1-9]$/.test(v) ? v : ''; saveProfile();
+  clearTimeout(IN.mock._t); IN.mock._t = setTimeout(() => { const k = el.dataset.k; const re = () => { const i = document.querySelector(`[data-in="mock"][data-k="${k}"]`); if (i) { i.focus(); const x = i.value; i.value = ''; i.value = x; } };
+    if (VIEW === 'record' && S.rec.tab === 'ipg') fillIpg().then(re); else if (VIEW === 'major' && S.mj.view === 'univ') { fillUniv(); re(); } }, 600);
+};
+
+/* 후보별: 그 대학 반영 평균 + 등급 점수 + 수능최저 */
+function calcCardHTML(cands) {
+  const my = myGrade();
+  if (!cands.length) return `<div class="calc"><h3>${ic('chart')} 대학마다 다른 내 평균</h3>${mockHTML()}<p class="tiny">학과·전형 화면에서 후보를 담으면, 대학마다 보는 교과로 다시 계산한 내 평균과 수능최저 충족 여부를 여기서 보여 줘요.</p></div>`;
+  const rows = cands.map(cd => {
+    const x = cafeRow(cd.univ, { 모집단위: cd.unit, 전형: cd.전형 });
+    const rule = x ? refRule(x.반영교과) : null, rc = refCalc(rule);
+    const minTxt = x ? x.수능최저학력기준 : '';
+    const isGyo = x ? /교과/.test(x._유형 || x.전형유형 || '') : /교과/.test(cd.유형 || '');
+    return { cd, x, rule, rc, minTxt, isGyo };
+  });
+  return `<div class="calc"><h3>${ic('chart')} 대학마다 다른 내 평균</h3>
+    <p class="one">대학이 보는 교과만 골라 다시 계산했어요. 전체 평균 <b>${my ? fmt(my.avg) : '-'}</b></p>
+    ${mockHTML()}
+    <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>후보</th><th>반영 교과</th><th class="n">이 대학 기준 내 평균</th><th>수능최저</th></tr></thead><tbody>
+    ${rows.map(({ cd, x, rc, minTxt, isGyo }) => {
+      const d = rc && my ? rc.avg - my.avg : null;
+      return `<tr><td><b>${esc(uniBase(cd.univ))}</b> ${esc(cd.unit)}<br><span class="tiny">${esc(cd.전형)}</span></td>
+        <td>${rc ? `<span class="tiny">${esc(rc.label)} · ${rc.n}과목</span>` : x ? `<span class="tiny">${isGyo ? '반영 교과를 못 읽었어요' : '종합평가(서류)'}</span>` : '<span class="tiny">자료 없음</span>'}${x ? `<details class="mini"><summary class="tiny">원문</summary><span class="tiny">${esc(x.반영교과)}</span></details>` : ''}</td>
+        <td class="n">${rc ? `<b>${fmt(rc.avg)}</b>${d != null && Math.abs(d) >= 0.01 ? `<br><span class="tiny">전체보다 ${d < 0 ? '▲' + fmt(-d) + ' 좋음' : '▼' + fmt(d)}</span>` : ''}${rc.pts != null ? `<br><span class="tiny">등급 점수 ${fmt(rc.pts, 1)} / ${rc.ptsMax}</span>` : ''}` : '-'}</td>
+        <td>${minTxt ? `<span class="tiny">${esc(minTxt.length > 70 ? minTxt.slice(0, 70) + '…' : minTxt)}</span>${csatBadge(minTxt)}` : '<span class="tiny">-</span>'}</td></tr>`;
+    }).join('')}</tbody></table></div>
+    <p class="tiny">반영 평균은 대학 환산점수 전체가 아니에요. 성취도·기본점수·출결은 빠져 있어요. 등급 점수는 5등급제 학생에게만, 원문에 점수표가 있을 때 보여요.</p></div>`;
+}
