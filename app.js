@@ -1332,7 +1332,7 @@ ${String(R.masked || '').slice(0, 60000)}
 };
 /* ---- 04-major.js ---- */
 /* ===== ② 학과·전형 찾기 ===== */
-const MJ_DATA = ['학과사전', '모집2028', '최저2028', '면접기준', '전형결과', '공식입결', '2028출처', '수시2028C'];
+const MJ_DATA = ['학과사전', '모집2028', '최저2028', '면접기준', '전형결과', '공식입결', '2028출처', '수시2028C', '어디가입결'];
 let MOJIP_IDX = null;
 function mojipIndex() {
   if (MOJIP_IDX) return MOJIP_IDX;
@@ -1575,7 +1575,7 @@ function fillUniv() {
   const M = S.mj, u = M.univ, rows = unitRows().filter(r => r.대학 === u);
   const src = DS['2028출처'].find(r => sameUni(r.대학, u));
   const my = myGrade();
-  const off = officialFor(u, M.keys), sh = sheetResults(u, M.keys);
+  const off = officialFor(u, M.keys), offA = adigaFor(u, M.keys), sh = sheetResults(u, M.keys);
   const ivRows = rows.map(r => ({ r, iv: ivFor(u, r) })).filter(x => x.iv);
   const tab = ['plan', 'result', 'iv'].includes(M.utab) ? M.utab : 'plan';
   const t = (k, icn, label, n) => `<button class="tab apri ${tab === k ? 'on' : ''}" data-act="mjUTab" data-k="${k}" aria-pressed="${tab === k}">${ic(icn)}${label}${n != null ? ` <span class="n">${n}</span>` : ''}</button>`;
@@ -1597,8 +1597,8 @@ function fillUniv() {
       <div class="row"><label class="toggle"><input type="checkbox" data-in="mjRural" ${S.profile.rural ? 'checked' : ''}><span class="sw"></span>농어촌 강조</label><button class="btn small white" data-act="go" data-to="rural">농어촌 체크</button></div></section>`;
   } else if (tab === 'result') {
     body = `<section class="panel vio"><h2>입결 참고</h2>${myBox(my)}
-      ${!off.length && /영남대/.test(uniBase(u)) ? '<p class="note">영남대 입결은 대학 안내에 따라 공식 게시물에서 확인해 주세요. <a href="https://enter.yu.ac.kr/10000023?mode=view&bbs_seq=1223&categorycode=8" target="_blank" rel="noopener noreferrer">2026 수시 입학자 성적(영남대 입학처)</a></p>' : ''}${officialHTML(off, my, u)}${sheetHTML(sh, my, u)}${schoolCasesHTML(u, M.keys)}
-      ${!off.length && !sh.length ? '<div class="empty"><strong>이 대학·학과 입결 자료가 없어요</strong>대학 입학처 자료를 확인해 주세요.</div>' : ''}
+      ${!off.length && /영남대/.test(uniBase(u)) ? '<p class="note">영남대 입결은 대학 안내에 따라 공식 게시물에서 확인해 주세요. <a href="https://enter.yu.ac.kr/10000023?mode=view&bbs_seq=1223&categorycode=8" target="_blank" rel="noopener noreferrer">2026 수시 입학자 성적(영남대 입학처)</a></p>' : ''}${officialHTML(off, my, u)}${officialHTML(offA, my, u + '#a')}${sheetHTML(sh, my, u)}${schoolCasesHTML(u, M.keys)}
+      ${!off.length && !offA.length && !sh.length ? '<div class="empty"><strong>이 대학·학과 입결 자료가 없어요</strong>대학 입학처 자료를 확인해 주세요.</div>' : ''}
       <p class="note">어디가 <b>전형정보</b>에서 이 학과를 펼치면 2026 결과(50%·70% 등급)를 볼 수 있어요. <a href="https://www.adiga.kr/ucp/prc/uni/admssUnivView.do?menuId=PCPRCINF2000" target="_blank" rel="noopener noreferrer">어디가 전형정보 열기</a> <span class="tiny">출처: 한국대학교육협의회</span></p>
       <p class="tiny">합격 가능성을 알려 주는 게 아니에요. 대학마다 반영 과목·방식이 달라요.</p></section>`;
   } else {
@@ -1612,7 +1612,7 @@ function fillUniv() {
       <p class="tiny">2028 면접은 바뀔 수 있어요. 모집요강으로 확인해 주세요.</p>
       <div class="row"><button class="btn vio" data-act="ivFrom" data-u="${esc(u)}" data-d="${esc(M.deptName || '')}">이 대학 면접 연습 ${ic('next')}</button></div></section>`;
   }
-  const nCard = new Set(off.map(r => (r.전형유형 || '') + '|' + (r.전형명 || ''))).size + sh.length;
+  const nCard = new Set(off.concat(offA).map(r => (r.출처유형 || '') + (r.전형유형 || '') + '|' + (r.전형명 || ''))).size + sh.length;
   box.innerHTML = `<div class="tabs stick" role="group" aria-label="대학 상세" style="--n:3">${t('plan', 'list', '2028 전형', rows.length)}${t('result', 'chart', '입결', nCard || null)}${t('iv', 'chat', '면접', ivRows.length)}</div>${body}`;
 }
 
@@ -1705,7 +1705,7 @@ function ipgPick(rows) {
 }
 async function fillIpg() {
   const box = $('#ipgBox'); if (!box) return;
-  await need(['공식입결', '전형결과', '수시2028C']);
+  await need(['공식입결', '전형결과', '수시2028C', '어디가입결']);
   const my = myGrade(), words = ipgWords();
   const hasW = s => { const t = nsp(s); return words.some(w => t.includes(nsp(w))); };
   const out = [];
@@ -1714,6 +1714,11 @@ async function fillIpg() {
     const g = new Map();
     DS['공식입결'].forEach(r => { if (!hasW(r.모집단위)) return; const k = [r.대학, r.학년도, r.전형명, r.모집단위].join('|'); if (!g.has(k)) g.set(k, []); g.get(k).push(r); });
     g.forEach(rs => { const p = ipgPick(rs); if (p) out.push({ u: uniBase(p.대학), unit: p.모집단위, tr: p.전형명 || p.전형유형, y: p.학년도, v: Number(p.성적값), crit: p.성적기준 || '기준 미표기', src: /어디가/.test(p.출처유형) ? '어디가' : '대학 발표', rural: /농어촌/.test(p.전형명) }); });
+    // 1-2) 어디가 전국 입결: 대학·전형·학과별 가장 최근 해, 70% 우선
+    const ag = new Map();
+    (DS['어디가입결'] || []).forEach(r => { if (!hasW(r.학과) || +r.연도 < 2025) return; const v = +r.등급70 > 0 ? +r.등급70 : +r.등급50 > 0 ? +r.등급50 : 0; if (!v) return; const k = r.대학 + '|' + r.전형 + '|' + r.학과; const o = ag.get(k); if (!o || +r.연도 > +o.y) ag.set(k, { u: uniBase(r.대학), unit: r.학과, tr: r.전형, y: r.연도, v, crit: (+r.등급70 > 0 ? '최종등록자 70%' : '최종등록자 50%') + ' (등급)', src: '어디가', rural: /농어촌/.test(r.전형) }); });
+    const offKeys = new Set(out.map(o => o.u + '|' + deptKey(o.unit) + '|' + o.y));
+    ag.forEach(o => { if (!offKeys.has(o.u + '|' + deptKey(o.unit) + '|' + o.y)) out.push(o); });
     // 2) 지식베이스 3개년 정리본(가장 최근 값)
     const seen = new Set(out.map(o => o.u + '|' + deptKey(o.unit)));
     DS['전형결과'].forEach(r => {
@@ -1844,6 +1849,24 @@ function howText(x) {
     return `1단계 ${s1.join('+') || x['1단계_전형방법'] || ''}${rate ? ' (' + rate[1] + ')' : ''} → 2단계 ${s2.join('+') || x['2단계_전형방법'] || ''}`;
   }
   return s1.join(' + ') || x['1단계_전형방법'] || '';
+}
+/* ---------- 어디가 전국 입결(2023~2026) → 입결 표 형식으로 펼치기 ---------- */
+const ADIGA_SRC = 'https://www.adiga.kr/ucp/prc/uni/admssUnivView.do?menuId=PCPRCINF2000';
+function adigaFor(univ, keys) {
+  const D = DS['어디가입결']; if (!D) return [];
+  const ks = new Set((keys || []).filter(Boolean));
+  const rows = D.filter(r => sameUni(r.대학, univ) && (ks.has(deptKey(r.학과)) || [...(r.__uk || (r.__uk = unitKeys(r.학과)))].some(k => ks.has(k)))).sort((a, b) => b.연도 - a.연도);
+  const out = [];
+  rows.forEach(r => {
+    const base = { 대학: r.대학, 학년도: r.연도, 모집시기: '수시', 전형유형: r.유형 === '교과' ? '학생부교과' : r.유형 === '종합' ? '학생부종합' : r.유형, 전형명: r.전형, 모집단위: r.학과,
+      모집인원: r.모집인원 && r.모집인원 !== '0' ? r.모집인원 : '', 경쟁률: +r.경쟁률 > 0 ? r.경쟁률 : '', 충원합격: r.충원 !== '' ? r.충원 : '', 성적체계: '9등급', 교육과정: '2015',
+      출처유형: '대입정보포털 어디가', 출처URL: ADIGA_SRC, 출처페이지: '정리: 남악고 김현석' };
+    const vals = [['최종등록자 50% (등급)', r.등급50], ['최종등록자 70% (등급)', r.등급70]];
+    if (+r.만점 > 0) vals.push([`환산 50% (만점 ${r.만점})`, r.변환50], [`환산 70% (만점 ${r.만점})`, r.변환70]);
+    const any = vals.some(([, v]) => +v > 0);
+    (any ? vals.filter(([, v]) => +v > 0) : [['', '']]).forEach(([k, v]) => out.push({ ...base, 성적기준: k, 성적값: v }));
+  });
+  return out;
 }
 /* ---- 05-interview.js ---- */
 /* ===== ③ 면접 연습 — 모범답안 없음, 내가 먼저 답한다 ===== */
