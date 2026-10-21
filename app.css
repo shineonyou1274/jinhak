@@ -557,3 +557,31 @@ body.withorig .app{margin-left:max(14px,calc((100vw - min(46vw,720px) - 1080px)/
 .goal h3{margin:0 0 8px}
 .goal .chip{border:1px solid rgba(255,214,102,.6);background:rgba(255,214,102,.1);color:#FFE7A3;border-radius:999px;padding:6px 12px;font-weight:800;font-size:.85rem;cursor:pointer;min-height:36px}
 .goal .chip:hover{background:rgba(255,214,102,.3)}
+/* 전형방법 한 줄 */
+.how{display:inline-block;margin-top:3px;font-size:.8rem;font-weight:700;color:var(--mint-t);background:rgba(62,230,207,.1);border:1px solid rgba(62,230,207,.3);border-radius:8px;padding:1px 7px}
+/* 과학기술원·특수대학 코너 */
+.xu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:10px 0 16px}
+.xu-card{border:1px solid var(--line);border-radius:18px;padding:14px;background:rgba(255,255,255,.04);display:flex;flex-direction:column;gap:8px}
+.xu-hd{display:flex;align-items:center;gap:10px}
+.xu-mark{flex:none;min-width:58px;height:44px;padding:0 8px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:.82rem;letter-spacing:-.2px}
+.xu-hd h3{margin:0;font-size:1rem;line-height:1.3}
+.xu-big{font-size:1.6rem;font-weight:900;line-height:1.1}
+.xu-big small{font-size:.8rem;font-weight:600;color:var(--sub);margin-left:4px}
+.xu-list{list-style:none;margin:0;padding:0;font-size:.88rem}
+.xu-list li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px dashed var(--line)}
+.xu-list li span:last-child{flex:none;font-variant-numeric:tabular-nums}
+.xu-card .fold{margin-top:4px}
+@media (max-width:640px){.xu-grid{grid-template-columns:1fr}}
+/* 정시 탐색 */
+.jsbar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.08);margin-top:4px;max-width:360px}
+.jsbar i{display:block;height:100%}
+.jslegend{display:flex;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--sub);margin-top:3px}
+.jslegend b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:3px;vertical-align:middle}
+.jsfac h4{margin:10px 0 4px;font-size:.85rem;color:var(--sub)}
+.jsfac .chip{min-height:34px;padding:4px 11px;font-size:.85rem}
+.jsfac .chip small{margin-left:4px;font-weight:600;color:var(--sub)}
+.jsuni{margin:14px 0 6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.jsrow .jsm{font-size:.86rem;color:var(--sub);min-width:200px}
+.jsrow .jscnt{flex:none;text-align:right}
+.jsgt td,.jsgt th{padding:2px 6px;font-size:.8rem;text-align:center}
+@media (max-width:640px){details.fold.jsrow>summary{flex-wrap:wrap;align-items:flex-start;gap:6px 10px}details.fold.jsrow>summary>span:nth-child(2){flex:1;min-width:0}.jsrow .jsm{flex-basis:100%;order:5;min-width:0}details.fold.jsrow>summary::after{order:4}}
