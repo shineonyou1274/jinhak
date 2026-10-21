@@ -240,6 +240,26 @@ const ICON = {
   iv: ic('chat', 'ic')
 };
 
+/* ---------- 똑똑한 검색: 띄어쓰기 = AND, 초성(ㄱㅊㄷ), 약칭(연대·카이스트·의대·교대) ---------- */
+const CHO_L = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+function choOf(s) { let o = ''; for (const ch of String(s || '')) { const c = ch.charCodeAt(0); o += c >= 0xAC00 && c <= 0xD7A3 ? CHO_L[Math.floor((c - 0xAC00) / 588)] : ch; } return o; }
+const ALIAS = {
+  연대: ['연세대'], 고대: ['고려대'], 성대: ['성균관대'], 성균대: ['성균관대'], 이대: ['이화여'], 숙대: ['숙명여'], 외대: ['한국외국어', '한국외대'], 중대: ['중앙대'], 건대: ['건국대'],
+  동대: ['동국대'], 홍대: ['홍익대'], 시립대: ['서울시립대'], 과기대: ['과학기술대'], 서울과기대: ['서울과학기술대'], 경상대: ['경상국립대'], 부경대: ['부경대'], 해양대: ['한국해양대'],
+  카이스트: ['kaist', '한국과학기술원'], 포스텍: ['포항공과', 'postech'], 지스트: ['gist', '광주과학기술원'], 디지스트: ['dgist', '대구경북과학기술원'], 유니스트: ['unist', '울산과학기술원'], 켄텍: ['kentech', '한국에너지공과'],
+  의대: ['의예', '의학'], 치대: ['치의예', '치의학'], 한의대: ['한의예'], 약대: ['약학'], 수의대: ['수의예'], 교대: ['교육대'], 사대: ['사범', '교육과'], 간호대: ['간호'],
+  육사: ['육군사관'], 해사: ['해군사관'], 공사: ['공군사관'], 국간사: ['국군간호사관'], 경찰대: ['경찰대']
+};
+const ALIAS_RX = { 교대: /교육대학교|초등교육/, 의대: /의예|(^|\s)의학(과|부|전문)|의과대학/, 치대: /치의예|치의학/, 한의대: /한의예|한의학/, 수의대: /수의예|수의학/ };
+function smartTerms(q) {
+  // 약칭이면 원래 낱말은 빼고 풀어 쓴 말만 찾는다('의대'가 '동의대'에 걸리지 않게)
+  return String(q || '').trim().split(/\s+/).filter(Boolean).map(t => { const low = t.toLowerCase(); return { t: low, cho: /^[ㄱ-ㅎ]{2,}$/.test(t), rx: ALIAS_RX[t] || null, alts: ALIAS[t] ? ALIAS[t].map(x => x.toLowerCase()) : [low] }; });
+}
+function smartHit(terms, hay) {
+  if (!terms || !terms.length) return true;
+  const h = String(hay || '').toLowerCase(); let hc = null;
+  return terms.every(x => { if (x.rx) return x.rx.test(h); if (x.cho) { hc = hc ?? choOf(h).replace(/\s/g, ''); return hc.includes(x.t); } return x.alts.some(a => h.includes(a)); });
+}
 /* ---- 02-record.js ---- */
 /* ===== 학생부 읽기: 가리기 → 영역 나누기 → 성적 → 근거 (규칙 기반, AI 없음) ===== */
 
@@ -1312,7 +1332,7 @@ ${String(R.masked || '').slice(0, 60000)}
 };
 /* ---- 04-major.js ---- */
 /* ===== ② 학과·전형 찾기 ===== */
-const MJ_DATA = ['학과사전', '모집2028', '최저2028', '면접기준', '전형결과', '공식입결', '2028출처'];
+const MJ_DATA = ['학과사전', '모집2028', '최저2028', '면접기준', '전형결과', '공식입결', '2028출처', '수시2028C'];
 let MOJIP_IDX = null;
 function mojipIndex() {
   if (MOJIP_IDX) return MOJIP_IDX;
@@ -1331,8 +1351,9 @@ function viewMajor() {
   if (M.view === 'dept' && M.dept) return vhead('apri', esc(M.deptName), '학과 → 대학 고르기', 'major') + '<div id="mjBox">불러오는 중…</div>';
   return vhead('apri', '학과·전형 찾기', '궁금한 학과를 찾아보세요.') + `<section class="panel apri">
     <label class="f" for="mjQ">학과 이름이나 관심 낱말</label>
-    <input id="mjQ" type="search" data-in="mjQ" value="${esc(M.q)}" placeholder="예: 간호, 반도체, 상담, 교육" autocomplete="off">
-    <div id="mjChips" class="row" style="margin-top:10px"></div></section><div id="mjBox"></div>`;
+    <input id="mjQ" type="search" data-in="mjQ" value="${esc(M.q)}" placeholder="예: 간호 / 연대 경영 / 의대 부산 / ㄱㅊㄷ 간호" autocomplete="off">
+    <div id="mjChips" class="row" style="margin-top:10px"></div>
+    <div class="row jump" style="margin-top:12px"><button class="btn vio" data-act="go" data-to="jeongsi">${ic('chart')} 정시 탐색</button><button class="btn sun" data-act="go" data-to="xuni">${ic('star')} 과학기술원·특수대학</button></div></section><div id="mjBox"></div>`;
 }
 async function fillMajor() {
   await need(MJ_DATA);
@@ -1364,7 +1385,17 @@ function mjResults() {
     ...hits.map(h => { const k = deptKey(h.d.학과명), n = cnt(k); return `<button class="li" data-act="mjDept" data-name="${esc(h.d.학과명)}"><div><div class="t">${esc(h.d.학과명)}</div><div class="s">${esc(h.d.계열)} · ${esc((h.d['관련 직업'] || '').split(',').slice(0, 3).join(', '))}</div></div><div class="r">${n ? `<span class="badge apri">2028 모집 ${n}개 대학</span>` : '<span class="badge">모집 자료 이름 다름</span>'}</div></button>`; }),
     ...extraKeys.map(k => `<button class="li" data-act="mjKey" data-key="${esc(k)}"><div><div class="t">${esc((idx.byKey.get(k)[0] || {}).모집단위 || k)}</div><div class="s">모집단위 이름으로 찾음</div></div><div class="r"><span class="badge apri">${cnt(k)}개 대학</span></div></button>`)];
   const lim = S.mj.more ? items.length : 12;
-  box.innerHTML = `<section class="panel apri"><h2>${ic('search')} 찾은 학과 <span class="badge apri">${items.length}</span></h2><div class="list two">
+  // 대학·모집단위 바로 찾기: "연대 경영", "의대 부산", "ㄱㅊㄷ 간호" (띄어쓰기 AND·초성·약칭)
+  const terms = smartTerms(S.mj.q), smart = terms.length >= 2 || terms.some(t => t.cho || t.rx || ALIAS[t.t]);
+  let uHTML = '';
+  if (smart && DS['수시2028C']) {
+    if (!cafeIdx.hay) cafeIdx.hay = DS['수시2028C'].map(x => [x.대학명, x.단과대학, x.모집단위, x.전형명, x.광역 || x.지역, x.지역].join(' '));
+    const g = new Map();
+    DS['수시2028C'].forEach((x, i) => { if (!smartHit(terms, cafeIdx.hay[i])) return; const k = uniBase(x.대학명) + '|' + x.모집단위; if (!g.has(k)) g.set(k, { u: uniBase(x.대학명), n: x.모집단위, tr: new Set(), c: 0 }); const o = g.get(k); o.tr.add(x._유형 || x.전형유형); o.c += +x.모집인원 || 0; });
+    const arr = [...g.values()].slice(0, 30);
+    uHTML = arr.length ? `<section class="panel apri"><h2>${ic('compass')} 대학·모집단위 바로 찾기 <span class="badge apri">${g.size}</span></h2><p class="tiny">띄어쓰기는 모두 포함, 초성(ㄱㅊㄷ)과 약칭(연대·의대·교대)도 돼요.</p><div class="list two">${arr.map(o => `<button class="li" data-act="ipgOpen" data-tab="plan" data-u="${esc(o.u)}" data-n="${esc(o.n)}"><div><div class="t">${esc(o.u)} ${esc(o.n.length > 40 ? o.n.slice(0, 40) + '…' : o.n)}</div><div class="s">${esc([...o.tr].filter(Boolean).join(' · '))} · ${o.c}명</div></div></button>`).join('')}</div>${g.size > 30 ? `<p class="tiny">위 30개만 보여요. 낱말을 더 넣어 좁혀 보세요.</p>` : ''}</section>` : '';
+  }
+  box.innerHTML = uHTML + `<section class="panel apri"><h2>${ic('search')} 찾은 학과 <span class="badge apri">${items.length}</span></h2><div class="list two">
     ${items.slice(0, lim).join('')}
     ${!items.length ? '<div class="empty"><strong>못 찾았어요</strong>더 짧은 낱말로 찾아보세요.</div>' : ''}</div>
     ${items.length > lim ? `<div class="more"><button class="btn white" data-act="mjMore">${ic('plus')} 더 보기 (${items.length - lim})</button></div>` : ''}</section>`;
@@ -1554,8 +1585,8 @@ function fillUniv() {
       const ms = minFor(u, r), iv = ivFor(u, r), ru = isRural(r.전형);
       const inC = S.cands.some(c => c.univ === u && c.전형 === r.전형 && c.unit === r.모집단위);
       return `<tr class="${ru && S.profile.rural ? 'hl' : ''}${iv ? '' : ' noiv'}"><td data-label="유형"><div><span class="badge ${r.유형 === '교과' ? 'mint' : r.유형 === '종합' ? 'vio' : r.유형 === '논술' ? 'apri' : 'sun'}">${esc(r.유형)}</span></div></td>
-        <td data-label="전형"><div><b>${esc(r.전형)}</b>${ru ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(r.모집단위)}</span></div></td><td class="n" data-label="인원"><div>${esc(r.인원)}</div></td>
-        <td data-label="수능최저"><div>${minText(ms)}</div></td><td class="ivc" data-label="면접"><div>${iv ? `<span class="badge vio" title="${esc(iv[0].면접방식 || '')}">면접</span>` : '<span class="tiny">—</span>'}</div></td>
+        <td data-label="전형"><div><b>${esc(r.전형)}</b>${ru ? ' <span class="badge sun">농어촌</span>' : ''}<br><span class="tiny">${esc(r.모집단위)}</span>${(() => { const x = cafeRow(u, r); const h = x ? howText(x) : ''; return h ? `<br><span class="how">${esc(h)}</span>` : ''; })()}</div></td><td class="n" data-label="인원"><div>${esc(r.인원)}</div></td>
+        <td data-label="수능최저"><div>${ms ? minText(ms) : (() => { const x = cafeRow(u, r); const t = x && String(x.수능최저학력기준 || '').trim(); return t ? (/^(없음|-|미적용)$/.test(t) ? '<span class="badge mint">없음</span>' : `<span class="tiny">${esc(t.length > 120 ? t.slice(0, 120) + '…' : t)}</span>`) : minText(ms); })()}</div></td><td class="ivc" data-label="면접"><div>${iv ? `<span class="badge vio" title="${esc(iv[0].면접방식 || '')}">면접</span>` : '<span class="tiny">—</span>'}</div></td>
         <td class="cdc" data-label="후보"><button class="cand ${inC ? 'on' : ''}" data-act="candAdd" data-u="${esc(u)}" data-t="${esc(r.전형)}" data-n="${esc(r.모집단위)}" data-y="${esc(r.유형)}" data-c="${esc(r.인원)}" data-k="${esc(r.모집단위키)}" aria-pressed="${inC}" aria-label="${esc(r.전형)} ${inC ? '후보에서 빼기' : '후보에 담기'}">${inC ? ic('check') + '담음' : ic('plus') + '담기'}</button></td></tr>`;
     }).join('');
     body = `<section class="panel apri"><h2>2028 전형 <span class="badge sun">시행계획 기준(잠정)</span></h2>
@@ -1779,12 +1810,35 @@ IN.goalT = el => { S.rec.goalT = el.value; const O = gradeOutlook(); const box =
 ACT.goalPick = el => { S.rec.goalT = el.dataset.v; fillIpg(); };
 ACT.ipgGo = () => { const i = $('#ipgQ'); S.rec.ipgQ = i ? i.value : ''; S.rec.ipgMore = false; fillIpg(); };
 ACT.ipgMore = () => { S.rec.ipgMore = true; fillIpg(); };
-ACT.ipgOpen = el => { const n = el.dataset.n, u = el.dataset.u; Object.assign(S.mj, { dept: n, deptName: n, keys: [...unitKeys(n)], view: 'univ', univ: u, utab: 'result', uq: '', umore: false }); go('major'); };
+ACT.ipgOpen = el => { const n = el.dataset.n; let u = el.dataset.u; const real = (DS['모집2028'] || []).find(r => sameUni(r.대학, u) && (nsp(r.모집단위) === nsp(n) || deptKey(r.모집단위) === deptKey(n))) || (DS['모집2028'] || []).find(r => sameUni(r.대학, u)); if (real) u = real.대학; Object.assign(S.mj, { dept: n, deptName: n, keys: [...unitKeys(n)], view: 'univ', univ: u, utab: el.dataset.tab || 'result', uq: '', umore: false }); go('major'); };
 
 function schoolCasesHTML(u, keys) {
   const cs = (S.teacher.cases || []).filter(c => sameUni(c.대학, u) && (keys || []).some(k => k && nsp(c.학과).includes(k)));
   if (!cs.length) return '';
   return `<h3>우리 학교 선배 사례 <span class="badge vio">이 기기에만 있음</span></h3><div class="tbl-wrap"><table><thead><tr><th>학과</th><th>전형</th><th class="n">내신</th><th>결과</th></tr></thead><tbody>${cs.slice(0, 40).map(c => `<tr><td>${esc(c.학과)}</td><td>${esc(c.전형)}<br><span class="tiny">${esc(c.학년도)}</span></td><td class="n">${esc(c.성적 || '-')}</td><td>${esc(c.결과)}${c.비식별메모 ? `<br><span class="tiny">${esc(c.비식별메모)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+}
+/* ---------- 카페 정리본(2028 시행계획): 모집단위별 전형방법·최저 ---------- */
+let CAFE_IDX = null;
+function cafeIdx() {
+  if (CAFE_IDX) return CAFE_IDX;
+  const m = new Map(); (DS['수시2028C'] || []).forEach(x => { const k = uniBase(x.대학명); if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+  return (CAFE_IDX = m);
+}
+function cafeRow(u, r) {
+  if (!DS['수시2028C']) return null;
+  const list = cafeIdx().get(uniBase(u)) || []; const un = nsp(r.모집단위), dk = deptKey(r.모집단위);
+  const c = list.filter(x => nsp(x.모집단위) === un || deptKey(x.모집단위) === dk); if (!c.length) return null;
+  return c.find(x => nsp(x.전형명) === nsp(r.전형)) || c.find(x => sameTrack(x.전형명, r.전형)) || null;
+}
+function howText(x) {
+  const part = st => [['학생부교과', '학생부'], ['서류', '서류'], ['면접', '면접'], ['논술', '논술'], ['실기', '실기']].map(([c, l]) => { const v = x[st + '_' + c + '(%)']; return v && +v > 0 ? `${l} ${v}%` : ''; }).filter(Boolean);
+  const s1 = part('1단계');
+  if (x.선발방식 === '단계별' || +x['2단계_1단계성적(%)'] > 0) {
+    const s2 = [+x['2단계_1단계성적(%)'] > 0 ? `1단계 ${x['2단계_1단계성적(%)']}%` : '', ...part('2단계')].filter(Boolean);
+    const rate = String(x['1단계_선발비율'] || '').match(/\((\d+(?:\.\d+)?배수)\)/);
+    return `1단계 ${s1.join('+') || x['1단계_전형방법'] || ''}${rate ? ' (' + rate[1] + ')' : ''} → 2단계 ${s2.join('+') || x['2단계_전형방법'] || ''}`;
+  }
+  return s1.join(' + ') || x['1단계_전형방법'] || '';
 }
 /* ---- 05-interview.js ---- */
 /* ===== ③ 면접 연습 — 모범답안 없음, 내가 먼저 답한다 ===== */
@@ -2366,7 +2420,9 @@ let VIEW = 'home';
 const VIEWS = {
   home: [viewHome], record: [viewRecord, () => { if (S.rec.step === 3) { if (S.rec.tab === 'check') fillCheck(); if (S.rec.tab === 'fit') { fillFit(); if (typeof fillPath === 'function') fillPath(); } if (S.rec.tab === 'ipg') fillIpg(); } }],
   major: [viewMajor, fillMajor], compare: [viewCompare, fillCompare], rural: [viewRural, fillRural],
-  interview: [viewInterview, fillInterview], teacher: [viewTeacher]
+  interview: [viewInterview, fillInterview], teacher: [viewTeacher],
+  jeongsi: [viewJeongsi, fillJeongsi],
+  xuni: [viewXuni, fillXuni]
 };
 function render() {
   const v = VIEWS[VIEW] || VIEWS.home;
@@ -2775,3 +2831,273 @@ IN.pathUniv = el => { (S.rec.path = S.rec.path || {}).univ = el.value.trim(); };
 IN.pathBuk = el => { (S.rec.path = S.rec.path || {}).buk = el.checked; fillPath(); };
 ACT.pathState = el => { (S.rec.path = S.rec.path || {}).state = el.dataset.v; fillPath(); };
 ACT.pathGo = () => { const P = (S.rec.path = S.rec.path || {}); const u = $('#pathUnit'), v = $('#pathUniv'); if (u) P.unit = u.value.trim(); if (v) P.univ = v.value.trim(); if (P.unit && !P.state) P.state = '정함'; fillPath(); };
+
+/* ---- 11-jeongsi.js ---- */
+/* ===== 정시 탐색 (2028 시행계획 · 우리 진학자료 카페 정리본) =====
+   CSS 추가 필요:
+   .jsbar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.08);margin-top:4px;max-width:360px}
+   .jsbar i{display:block;height:100%}
+   .jslegend{display:flex;gap:8px;flex-wrap:wrap;font-size:.8rem;color:var(--sub);margin-top:3px}
+   .jslegend b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:3px;vertical-align:middle}
+   .jsfac h4{margin:10px 0 4px;font-size:.85rem;color:var(--sub)}
+   .jsfac .chip{min-height:34px;padding:4px 11px;font-size:.85rem}
+   .jsfac .chip small{margin-left:4px;font-weight:600;color:var(--sub)}
+   .jsuni{margin:14px 0 6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+   .jsrow>summary{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:start}
+   .jsrow .jsm{grid-column:2/4;font-size:.86rem;color:var(--sub)}
+   .jsgt td,.jsgt th{padding:2px 6px;font-size:.8rem;text-align:center}
+   @media (max-width:640px){.jsrow>summary{grid-template-columns:auto 1fr}.jsrow .jscnt{grid-column:2}}
+*/
+S.js = S.js || { q: '', sel: {}, more: false, open: null, uniMore: {} };
+const JS_GROUPS = [
+  { k: 'region', label: '지역', col: '광역', vals: ['서울', '경기·인천', '충청', '강원', '호남·제주', '영남'] },
+  { k: 'gun', label: '모집군', col: '_군', vals: ['가', '나', '다', '군외', '기타'], name: { 가: '가군', 나: '나군', 다: '다군', 군외: '군외', 기타: '기타·미정' } },
+  { k: 'type', label: '전형 유형', col: '_유형', vals: ['수능위주', '실기위주'] },
+  { k: 'who', label: '지원 대상', col: '_대상', vals: ['일반', '지역인재', '기회균형', '농어촌', '특성화·재직자', '장애인 등', '재외·외국인', '특기자·실기'] },
+  { k: 'line', label: '계열', col: '_계열', vals: ['인문', '자연', '예체능', '통합'] },
+  { k: 'rec', label: '학생부 반영', col: '_학생부', vals: ['있음', '없음'] },
+  { k: 'iv', label: '면접', col: '_면접', vals: ['있음', '없음'] }
+];
+const JS_PART = [['국', '수능_국어(%)', '국어', 'var(--rose)'], ['수', '수능_수학(%)', '수학', 'var(--mint)'], ['영', '수능_영어(%)', '영어', 'var(--sun)'], ['탐', '수능_탐구(%)', '탐구', 'var(--vio)'], ['사', '수능_통합사회(%)', '통합사회', 'var(--apri)'], ['과', '수능_통합과학(%)', '통합과학', '#6FC3FF']];
+let JS_HAY = null;
+const jsVals = (r, col) => String(r[col] || '').split('|').map(s => s.trim()).filter(Boolean);
+function jsPrep() {
+  const rows = DS['정시2028'] || [];
+  if (JS_HAY && JS_HAY.length === rows.length) return rows;
+  JS_HAY = rows.map(r => [r.대학명, r.단과대학, r.모집단위, r.전형명, r.모집군].filter(Boolean).join(' ').toLowerCase());
+  JS_HAY.tags = rows.map(r => Object.fromEntries(JS_GROUPS.map(g => [g.k, jsVals(r, g.col)])));
+  return rows;
+}
+/* 국·수·영·탐 비율 + 우수영역 선택(가중치 합) */
+function jsParts(r) {
+  let out = JS_PART.map(([n, c, name, color]) => ({ n, name, color, v: Number(r[c]) || 0 })).filter(x => x.v > 0);
+  // 2028 수능: 탐구 % = 통합사회 % + 통합과학 % (원자료 2,263행 모두 일치). 나눠 적힌 행은 탐구를 막대에서 빼 겹치지 않게
+  const tamV = out.some(x => x.n === '사' || x.n === '과') ? (out.find(x => x.n === '탐') || {}).v : null;
+  if (tamV != null) out = out.filter(x => x.n !== '탐');
+  const w = String(r['선택반영_가중치(우수순)'] || '').split(',').map(Number).filter(x => x > 0);
+  const sel = w.reduce((a, b) => a + b, 0);
+  if (sel) out.push({ n: '선', name: '선택(' + (r['선택반영_대상영역'] || '') + ')', color: 'var(--sub)', v: sel });
+  return { out, w, area: r['선택반영_대상영역'] || '', tamV };
+}
+function jsBars(r, legend) {
+  const { out, w, area, tamV } = jsParts(r); if (!out.length) return '';
+  const tot = out.reduce((s, x) => s + x.v, 0) || 100;
+  const sk = out.filter(x => x.n === '사' || x.n === '과').map(x => x.n + ' ' + x.v).join('·');
+  const txt = out.filter(x => x.n !== '선' && !(tamV != null && (x.n === '사' || x.n === '과'))).map(x => x.n + ' ' + x.v).concat(tamV != null ? ['탐 ' + tamV + '(' + sk + ')'] : []).join(' · ') + (w.length ? (out.length > 1 ? ' · ' : '') + '선택(' + esc(area) + ') ' + w.join('/') : '');
+  return `<div class="jsbar" role="img" aria-label="${esc(out.map(x => x.name + ' ' + x.v + '%').join(', '))}">${out.map(x => `<i style="width:${(x.v / tot * 100).toFixed(1)}%;background:${x.color}"></i>`).join('')}</div>
+    ${legend ? `<div class="jslegend">${out.map(x => `<span><b style="background:${x.color}"></b>${esc(x.name)} ${x.v}%</span>`).join('')}</div>` : `<div class="tiny">${txt}</div>`}`;
+}
+function jsMethod(r) {
+  const m = r['1단계_전형방법'] || [['수능', r['1단계_수능(%)']], ['학생부', r['1단계_학생부(%)']], ['실기', r['1단계_실기(%)']], ['면접', r['1단계_면접(%)']]].filter(x => Number(x[1]) > 0).map(x => x[0] + ' ' + x[1] + '%').join(' + ');
+  return m || '';
+}
+// 검색어로 거른 줄 번호는 검색어가 바뀔 때만 다시 센다(조건 칩 건수 계산마다 반복하지 않게)
+let JS_QC = { q: null, idx: null };
+function jsSearch() {
+  const rows = jsPrep();
+  if (JS_QC.q === S.js.q && JS_QC.n === rows.length) return JS_QC.idx;
+  const terms = smartTerms(S.js.q), idx = [];
+  for (let i = 0; i < rows.length; i++) if (!terms.length || smartHit(terms, JS_HAY[i])) idx.push(i);
+  JS_QC = { q: S.js.q, n: rows.length, idx };
+  return idx;
+}
+function jsPass(skip) {
+  const out = [];
+  for (const i of jsSearch()) {
+    const tg = JS_HAY.tags[i]; let ok = true;
+    for (const g of JS_GROUPS) { if (g.k === skip) continue; const s = S.js.sel[g.k]; if (s && s.length && !s.some(v => tg[g.k].includes(v))) { ok = false; break; } }
+    if (ok) out.push(i);
+  }
+  return out;
+}
+function jsFacHTML() {
+  return JS_GROUPS.map(g => {
+    const pass = jsPass(g.k), cnt = {};
+    pass.forEach(i => JS_HAY.tags[i][g.k].forEach(v => (cnt[v] = (cnt[v] || 0) + 1)));
+    const sel = S.js.sel[g.k] || [];
+    const chips = g.vals.filter(v => cnt[v] || sel.includes(v)).map(v => `<button class="chip ${sel.includes(v) ? 'on' : ''}" data-act="jsChip" data-g="${g.k}" data-v="${esc(v)}" aria-pressed="${sel.includes(v)}">${esc((g.name || {})[v] || v)}<small>${(cnt[v] || 0).toLocaleString()}</small></button>`).join('');
+    return chips ? `<h4>${esc(g.label)}</h4><div class="chips" style="margin:0;justify-content:flex-start">${chips}</div>` : '';
+  }).join('');
+}
+function jsRowHTML(i) {
+  const r = DS['정시2028'][i], tg = JS_HAY.tags[i];
+  const gun = tg.gun.length ? tg.gun.map(g => g === '군외' || g === '기타' ? g : g + '군').join('·') : (r.모집군 || '-');
+  const flags = [S.profile.rural && tg.who.includes('농어촌') ? '<span class="badge sun">농어촌</span>' : '', r.선발방식 === '단계별' ? '<span class="badge">단계별</span>' : '', tg.iv.includes('있음') ? '<span class="badge vio">면접</span>' : '', tg.type.includes('실기위주') ? '<span class="badge apri">실기</span>' : '', String(r.정원구분 || '').includes('외') ? '<span class="badge">정원외</span>' : ''].filter(Boolean).join(' ');
+  const key = 'js|' + i, open = S.js.open === i;
+  return `<details class="fold jsrow" data-fold="${key}"${open ? ' open' : ''}><summary data-act="jsOpen" data-i="${i}">
+    <span class="badge mint">${esc(gun)}</span>
+    <span><b>${esc(r.모집단위 || '-')}</b> ${flags}<br><span class="tiny">${[r.전형명, r.단과대학, r.계열].filter(Boolean).map(esc).join(' · ')}</span></span>
+    <span class="n jscnt"><b>${r.모집인원 ? esc(r.모집인원) : ''}</b><span class="tiny">${r.모집인원 ? '명' : '약간명'}</span></span>
+    <span class="jsm">${esc(jsMethod(r))}${jsBars(r, false)}</span></summary><div class="fb" id="jsD${i}">${open ? jsDetailHTML(i) : ''}</div></details>`;
+}
+function jsGradeTable(r, k) {
+  const v = [1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => r[k + '_' + g + '등급']);
+  if (!v.some(x => x !== '' && x != null)) return '';
+  return `<div class="tbl-wrap"><table class="jsgt"><thead><tr><th>${k}</th>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(g => `<th>${g}</th>`).join('')}</tr></thead><tbody><tr><td class="tiny">등급별</td>${v.map(x => `<td>${esc(x || '-')}</td>`).join('')}</tr></tbody></table></div>`;
+}
+function jsDetailHTML(i) {
+  const r = DS['정시2028'][i];
+  const kv = list => { const t = list.filter(x => x[1] != null && String(x[1]).trim() !== ''); return t.length ? `<div class="tbl-wrap"><table><tbody>${t.map(([k, v]) => `<tr><th style="width:26%">${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table></div>` : ''; };
+  const { w, area } = jsParts(r);
+  const st2 = r.선발방식 === '단계별';
+  let h = jsBars(r, true);
+  h += kv([
+    ['전형방법', st2 ? `1단계 ${r['1단계_선발비율'] || ''} ${r['1단계_전형방법'] || ''} → 2단계 ${r['2단계_전형방법'] || [['1단계', r['2단계_1단계성적(%)']], ['수능', r['2단계_수능(%)']], ['학생부', r['2단계_학생부(%)']], ['실기', r['2단계_실기(%)']], ['면접', r['2단계_면접(%)']]].filter(x => Number(x[1]) > 0).map(x => x[0] + ' ' + x[1] + '%').join(' + ')}` : jsMethod(r)],
+    ['수능 활용지표', r['수능_활용지표']], ['수능 반영방식', r['수능_반영방식']],
+    ['선택반영', w.length ? `${area} (우수순 ${w.join('·')}%)` : ''],
+    ['탐구', [r['탐구_반영과목수'] ? r['탐구_반영과목수'] + '과목' : '', r['탐구_산출방법']].filter(Boolean).join(' · ')],
+    ['가산점', r['가산_대상'] ? `${r['가산_대상']} ${r['가산_비율(%)'] ? r['가산_비율(%)'] + '%' : ''}` : ''],
+    ['영어', r['영어_반영방식']], ['한국사', r['한국사_반영방식']], ['수능 비고', r['수능_비고']]
+  ]);
+  const et = jsGradeTable(r, '영어'), ht = jsGradeTable(r, '한국사');
+  if (et || ht) h += `<p class="tiny" style="margin:8px 0 2px">등급별 환산 점수</p>${et}${ht}`;
+  h += kv([['학생부 반영교과', r['반영교과']], ['출결', r['출결반영']], ['지원자격', r['지원자격']], ['수능최저', r['수능최저학력기준'] && r['수능최저학력기준'] !== '없음' ? r['수능최저학력기준'] : ''], ['비고', r['비고']], ['소재지', [r.지역, r.광역].filter(Boolean).join(' · ')]]);
+  return h;
+}
+function jsResHTML() {
+  const pass = jsPass(null), g = new Map();
+  pass.forEach(i => { const u = DS['정시2028'][i].대학명; if (!g.has(u)) g.set(u, []); g.get(u).push(i); });
+  const unis = [...g.entries()];
+  const people = pass.reduce((s, i) => s + (Number(DS['정시2028'][i].모집인원) || 0), 0);
+  const lim = S.js.more ? unis.length : 12;
+  const head = `<p class="statline"><b>${unis.length.toLocaleString()}</b>개 대학 · <b>${pass.length.toLocaleString()}</b>개 모집단위 · ${people.toLocaleString()}명</p>`;
+  if (!pass.length) return head + '<div class="empty"><strong>맞는 모집단위가 없어요</strong>검색어를 줄이거나 조건을 풀어 보세요.</div>';
+  const body = unis.slice(0, lim).map(([u, idx]) => {
+    const n = S.js.uniMore[u] ? idx.length : 15;
+    const reg = DS['정시2028'][idx[0]].지역;
+    return `<div class="jsuni"><h3 style="margin:0">${esc(u)}</h3><span class="tiny">${esc(reg || '')} · ${idx.length}개 모집단위</span></div>
+      ${idx.slice(0, n).map(jsRowHTML).join('')}
+      ${idx.length > n ? `<button class="btn white small" data-act="jsUni" data-u="${esc(u)}">이 대학 더 보기 (${idx.length - n})</button>` : ''}`;
+  }).join('');
+  return head + body + (unis.length > lim ? `<button class="btn white" data-act="jsMore" style="margin-top:12px">대학 더 보기 (${unis.length - lim})</button>` : '');
+}
+function viewJeongsi() {
+  return vhead('apri', '정시 탐색', '2028 시행계획 기준(잠정)', 'major') + '<div id="jsBox">불러오는 중…</div>';
+}
+function jsDraw() {
+  const f = $('#jsFac'), r = $('#jsRes'), c = $('#jsFacN');
+  if (f) f.innerHTML = jsFacHTML();
+  if (c) { const n = JS_GROUPS.reduce((s, g) => s + ((S.js.sel[g.k] || []).length), 0); c.textContent = n ? n + '개 선택' : ''; }
+  if (r) r.innerHTML = jsResHTML();
+}
+async function fillJeongsi() {
+  const box = $('#jsBox'); if (!box) return;
+  await need(['정시2028']); jsPrep();
+  if (!(DS['정시2028'] || []).length) { box.innerHTML = '<div class="empty"><strong>정시 자료가 없어요</strong></div>'; return; }
+  box.innerHTML = `<section class="panel apri">
+    <label class="f" for="jsQ">대학·모집단위·전형 검색</label>
+    <input id="jsQ" type="search" data-in="jsQ" value="${esc(S.js.q)}" placeholder="예: 부산 의대 / ㄱㅊㄷ 간호 / 카이스트" style="width:100%" autocomplete="off">
+    <p class="tiny" style="margin:4px 0 0">띄어쓰기는 '그리고'. 초성·약칭(연대·교대·의대)도 돼요.</p>
+    <details class="fold jsfac" data-fold="jsfac"${fo('jsfac', false)}><summary><span class="sumt"><b>조건 좁히기</b><span class="pv" id="jsFacN"></span></span></summary><div class="fb"><div id="jsFac"></div>
+      <button class="btn white small" data-act="jsReset" style="margin-top:10px">조건 모두 풀기</button></div></details>
+  </section>
+  <section class="panel"><div id="jsRes"></div>
+    <p class="tiny" style="margin-top:12px">2028학년도 시행계획(2026.4 공표본) 정리. 지원 전 대학 모집요강을 꼭 확인하세요.</p></section>`;
+  jsDraw();
+}
+IN.jsQ = el => { S.js.q = el.value; S.js.more = false; S.js.open = null; clearTimeout(IN.jsQ._t); IN.jsQ._t = setTimeout(jsDraw, 250); };
+ACT.jsChip = el => {
+  const g = el.dataset.g, v = el.dataset.v, s = (S.js.sel[g] = S.js.sel[g] || []);
+  const at = s.indexOf(v); if (at >= 0) s.splice(at, 1); else s.push(v);
+  S.js.more = false; S.js.open = null; jsDraw();
+};
+ACT.jsReset = () => { S.js.sel = {}; S.js.more = false; S.js.open = null; jsDraw(); };
+ACT.jsMore = () => { S.js.more = true; const r = $('#jsRes'); if (r) r.innerHTML = jsResHTML(); };
+ACT.jsUni = el => { S.js.uniMore[el.dataset.u] = true; const r = $('#jsRes'); if (r) r.innerHTML = jsResHTML(); };
+// 줄을 누르면 그 자리에서 상세를 펼친다(상세는 열 때만 만든다)
+ACT.jsOpen = el => {
+  const i = +el.dataset.i, d = el.closest('details'); if (!d) return;
+  const willOpen = !d.open; d.open = willOpen; S.js.open = willOpen ? i : null;
+  if (willOpen) { const b = document.getElementById('jsD' + i); if (b && !b.innerHTML) b.innerHTML = jsDetailHTML(i); }
+};
+
+/* ---- 12-xuni.js ---- */
+/* ===== 과학기술원·특수대학 코너 (자료: 우리 진학자료 카페 2028 시행계획 정리본) =====
+   CSS 추가 필요:
+.xu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin:10px 0 16px}
+.xu-card{border:1px solid var(--line);border-radius:18px;padding:14px;background:rgba(255,255,255,.04);display:flex;flex-direction:column;gap:8px}
+.xu-hd{display:flex;align-items:center;gap:10px}
+.xu-mark{flex:none;min-width:58px;height:44px;padding:0 8px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:.82rem;letter-spacing:-.2px}
+.xu-hd h3{margin:0;font-size:1rem;line-height:1.3}
+.xu-big{font-size:1.6rem;font-weight:900;line-height:1.1}
+.xu-big small{font-size:.8rem;font-weight:600;color:var(--sub);margin-left:4px}
+.xu-list{list-style:none;margin:0;padding:0;font-size:.88rem}
+.xu-list li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px dashed var(--line)}
+.xu-list li span:last-child{flex:none;font-variant-numeric:tabular-nums}
+.xu-card .fold{margin-top:4px}
+@media (max-width:640px){.xu-grid{grid-template-columns:1fr}}
+*/
+const XU_SCI = [
+  { n: '한국과학기술원(KAIST)', short: 'KAIST', c: '#1b4f9c', loc: '대전', free: true },
+  { n: '포항공과대학교', short: 'POSTECH', c: '#b0263b', loc: '경북 포항', free: false },
+  { n: '광주과학기술원(GIST)', short: 'GIST', c: '#6d2c91', loc: '광주', free: true },
+  { n: '대구경북과학기술원(DGIST)', short: 'DGIST', c: '#0f7d8c', loc: '대구', free: true },
+  { n: '울산과학기술원(UNIST)', short: 'UNIST', c: '#1d7f4e', loc: '울산', free: true },
+  { n: '한국에너지공과대학교(KENTECH)', short: 'KENTECH', c: '#c76a12', loc: '전남 나주', free: true }
+];
+const XU_SP = [
+  { n: '육군사관학교', short: '육사', c: '#3f5a2c' }, { n: '해군사관학교', short: '해사', c: '#1d3a6b' }, { n: '공군사관학교', short: '공사', c: '#2f6ca8' },
+  { n: '국군간호사관학교', short: '국간사', c: '#7a3b5c' }, { n: '경찰대학', short: '경찰대', c: '#24324a' }
+];
+const xuState = () => (S.xu = S.xu || { open: {} });
+
+function viewXuni() {
+  return vhead('apri', '과학기술원·특수대학', '수시 6회 제한 밖 학교 모음', 'major') + '<div id="xuBox">불러오는 중…</div>';
+}
+const xuNum = v => { const n = Number(String(v ?? '').replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; };
+const xuShortType = t => String(t || '').replace('학생부', '').replace('위주', '') || '-';
+function xuSummary(name) {
+  const s = DS['수시2028C'].filter(r => r.대학명 === name), j = DS['정시2028'].filter(r => r.대학명 === name);
+  const by = new Map();
+  s.forEach(r => { const k = r.전형명 || '-'; if (!by.has(k)) by.set(k, { n: 0, type: r.전형유형 }); by.get(k).n += xuNum(r.모집인원); });
+  const total = s.reduce((a, r) => a + xuNum(r.모집인원), 0), jt = j.reduce((a, r) => a + xuNum(r.모집인원), 0);
+  return { s, j, by, total, jt, loc: (s[0] || j[0] || {}).지역 || '' };
+}
+/* 1단계·2단계 퍼센트 열을 묶어 한 줄로 */
+function xuMethod(r) {
+  const part = (st, keys) => keys.map(([c, l]) => { const v = String(r[st + '_' + c] || '').trim(); return v && v !== '0' && v !== '-' ? `${l} ${v.replace(/%$/, '')}%` : ''; }).filter(Boolean);
+  const k1 = [['학생부교과(%)', '교과'], ['서류(%)', '서류'], ['면접(%)', '면접'], ['논술(%)', '논술'], ['실기(%)', '실기']];
+  const a = part('1단계', k1); const e1 = String(r['1단계_기타'] || '').trim(); if (e1 && e1 !== '-') a.push(e1);
+  const b = part('2단계', [['1단계성적(%)', '1단계'], ...k1]); const e2 = String(r['2단계_기타'] || '').trim(); if (e2 && e2 !== '-') b.push(e2);
+  const sel = String(r['1단계_선발비율'] || '').trim();
+  if (b.length) return `1단계 ${a.join(' + ') || String(r['1단계_전형방법'] || '-')}${sel ? ` (${sel})` : ''} → 2단계 ${b.join(' + ')}`;
+  return a.join(' + ') || String(r['1단계_전형방법'] || r['2단계_전형방법'] || '-');
+}
+function xuMin(r) {
+  const m = String(r.수능최저학력기준 || '').trim();
+  if (!m || /^(없음|-|미적용)$/.test(m) || r._최저 === '없음') return '<span class="badge mint">없음</span>';
+  return `<span class="tiny">${esc(m.length > 60 ? m.slice(0, 60) + '…' : m)}</span>`;
+}
+const xuHasIv = r => r._면접 === '있음' || /면접/.test([r['1단계_면접(%)'], r['2단계_면접(%)'], r['1단계_전형방법'], r['2단계_전형방법']].join(' ').replace(/^[\s0-]*$/, ''));
+function xuCard(u, isSci) {
+  const m = xuSummary(u.n);
+  const rule = isSci ? (u.free ? '<span class="badge mint">수시 6회 지원 제한 미적용</span>' : '<span class="badge sun">수시 6회 지원 횟수에 포함</span>') : '<span class="badge mint">수시 6회·정시 군 제한 미적용</span>';
+  const hd = `<div class="xu-hd"><div class="xu-mark" style="background:${u.c}">${esc(u.short)}</div><div style="min-width:0"><h3>${esc(u.n)}</h3><span class="tiny">${esc(u.loc || m.loc)}</span></div></div>`;
+  if (!m.s.length && !m.j.length) return `<div class="xu-card">${hd}<div class="note">데이터 없음 · 학교 누리집에서 확인해 주세요.</div></div>`;
+  const list = [...m.by.entries()].map(([t, v]) => `<li><span>${esc(t)} <span class="tiny">${esc(xuShortType(v.type))}</span></span><span>${v.n ? fmt(v.n, 0) + '명' : '–'}</span></li>`).join('');
+  const key = 'xu|' + u.n, open = !!xuState().open[u.n];
+  const rows = open ? m.s.map(r => `<tr><td><b>${esc(r.모집단위 || '-')}</b>${r.단과대학 ? `<br><span class="tiny">${esc(r.단과대학)}</span>` : ''}</td><td>${esc(r.전형명)}<br><span class="tiny">${esc(xuShortType(r.전형유형))}${r.정원구분 ? ' · ' + esc(r.정원구분) : ''}</span></td><td class="n">${esc(r.모집인원 || '-')}</td><td><span class="tiny">${esc(xuMethod(r))}</span></td><td>${xuMin(r)}</td><td>${xuHasIv(r) ? '<span class="badge vio">면접</span>' : '<span class="tiny">—</span>'}</td></tr>`).join('') : '';
+  return `<div class="xu-card">${hd}
+    <div class="xu-big">${fmt(m.total, 0)}<small>명 · 수시 ${m.s.length}개 모집단위</small></div>${rule}
+    <ul class="xu-list">${list}${m.j.length ? `<li><span>정시</span><span>${fmt(m.jt, 0)}명</span></li>` : ''}</ul>
+    ${m.s.length ? `<details class="fold" data-fold="${esc(key)}"${open ? ' open' : ''}><summary data-act="xuOpen" data-u="${esc(u.n)}"><span class="sumt"><b>모집단위 보기</b><span class="pv">${m.s.length}행 · 전형방법·수능최저·면접</span></span></summary><div class="fb">
+      ${open ? `<div class="tbl-wrap"><table><thead><tr><th>모집단위</th><th>전형</th><th class="n">인원</th><th>전형방법</th><th>수능최저</th><th>면접</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}</div></details>` : ''}
+  </div>`;
+}
+async function fillXuni() {
+  const box = $('#xuBox'); if (!box) return;
+  await need(['수시2028C', '정시2028']);
+  box.innerHTML = `<section class="panel apri"><h2>${ic('star')} 6회 제한 밖 학교</h2>
+    <p class="one">KAIST·GIST·DGIST·UNIST·KENTECH는 개별 법률로 세워진 학교라 수시 6회 지원 횟수에 들어가지 않아요.</p>
+    <p class="one">POSTECH(포항공과대)은 일반 사립대라 6회 안에 포함돼요. 사관학교·경찰대도 6회 제한과 정시 군 제한 밖이에요.</p>
+    <p class="tiny">인원은 2028 시행계획 수시 모집인원 합계예요(약간명·이월 제외). 지원 횟수 규정은 해당 연도 모집요강과 대교협 안내로 다시 확인하세요.</p></section>
+    <h2 style="margin:14px 0 4px">과학기술원·이공계 특성화대학 <span class="tiny">6곳</span></h2>
+    <div class="xu-grid">${XU_SCI.map(u => xuCard(u, true)).join('')}</div>
+    <h2 style="margin:14px 0 4px">특수목적대학 <span class="tiny">사관학교·경찰대학</span></h2>
+    <div class="xu-grid">${XU_SP.map(u => xuCard(u, false)).join('')}</div>`;
+}
+ACT.xuOpen = (el, e) => {
+  const u = el.dataset.u, st = xuState(); st.open[u] = !st.open[u];
+  if (e) e.preventDefault();
+  const y = window.scrollY; fillXuni().then(() => window.scrollTo(0, y));
+};
