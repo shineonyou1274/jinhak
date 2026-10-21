@@ -585,3 +585,13 @@ body.withorig .app{margin-left:max(14px,calc((100vw - min(46vw,720px) - 1080px)/
 .jsrow .jscnt{flex:none;text-align:right}
 .jsgt td,.jsgt th{padding:2px 6px;font-size:.8rem;text-align:center}
 @media (max-width:640px){details.fold.jsrow>summary{flex-wrap:wrap;align-items:flex-start;gap:6px 10px}details.fold.jsrow>summary>span:nth-child(2){flex:1;min-width:0}.jsrow .jsm{flex-basis:100%;order:5;min-width:0}details.fold.jsrow>summary::after{order:4}}
+/* 반영 평균·수능최저 점검 */
+.calc{margin:12px 0;padding:12px 14px;border-radius:18px;border:1px solid rgba(62,230,207,.4);background:linear-gradient(135deg,rgba(62,230,207,.1),rgba(123,92,245,.12))}
+.calc h3{margin:0 0 6px}
+.mock{margin:8px 0;padding:10px 12px;border-radius:14px;background:rgba(6,9,32,.45);border:1px solid var(--line)}
+.mockrow{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:6px}
+.mockrow label{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.78rem;color:var(--sub)}
+.mockrow input{width:100%;max-width:70px;text-align:center;font-size:1.05rem;font-weight:800;padding:6px 2px}
+@media (max-width:520px){.mockrow{grid-template-columns:repeat(3,minmax(0,1fr))}}
+details.mini{margin-top:2px}details.mini>summary{cursor:pointer;color:var(--dim)}
+.myref b{color:var(--mint-t)}
