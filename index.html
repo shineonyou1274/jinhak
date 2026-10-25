@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B1035">
+<title>진학 나침반</title>
+<link rel="stylesheet" href="app.css">
+<style>
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 10%,#3b2f7a 0,transparent 45%),radial-gradient(circle at 85% 30%,#1f5f7a 0,transparent 40%),#0B1035;color:#fff;font-family:"Pretendard","Malgun Gothic",sans-serif}
+.gate form{width:min(420px,100%);background:#ffffff14;border:1px solid #ffffff2a;border-radius:22px;padding:30px 26px;backdrop-filter:blur(8px)}
+.gate h1{font-size:28px;margin:0 0 6px;color:#7ee8d8}
+.gate p{margin:0 0 18px;color:#d6d3f5;line-height:1.55;font-size:15px}
+.gate input[type=password]{width:100%;box-sizing:border-box;font-size:18px;padding:13px 14px;border-radius:12px;border:1px solid #ffffff40;background:#0b1035cc;color:#fff}
+.gate label{display:flex;gap:8px;align-items:center;margin:12px 0 16px;font-size:14px;color:#d6d3f5}
+.gate button{width:100%;font-size:17px;font-weight:800;padding:13px;border:0;border-radius:12px;background:linear-gradient(90deg,#5eead4,#93c5fd);color:#0b1035;cursor:pointer}
+.gate button:disabled{opacity:.6}
+.gate .msg{min-height:22px;margin-top:12px;color:#ffd27a;font-size:14px}
+.gate small{display:block;margin-top:14px;color:#a9a5d6;font-size:12.5px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <form id="gateForm" autocomplete="off">
+    <h1>진학 나침반</h1>
+    <p>선생님께 받은 비밀번호를 넣어 주세요.<br>비밀번호는 주기적으로 바뀌어요.</p>
+    <input id="gatePw" type="password" placeholder="비밀번호" aria-label="비밀번호">
+    <label><input id="gateRemember" type="checkbox"> 이 기기에서 기억하기 (공용 PC에서는 체크하지 마세요)</label>
+    <button id="gateBtn" type="submit">열기</button>
+    <div class="msg" id="gateMsg" role="status" aria-live="polite"></div>
+    <small>학생부는 이 기기 안에서만 처리되고 서버로 보내지 않아요. 무료·비영리.</small>
+  </form>
+</div>
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+<header class="top" id="top" style="display:none"></header>
+<div id="app" class="app" style="display:none">
+  <main id="main" tabindex="-1"></main>
+  <div id="candbar" class="candbar" hidden></div>
+  <footer class="foot" id="foot"></footer>
+</div>
+<div id="print" class="print-only" aria-hidden="true"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="dlg" class="dlg" aria-labelledby="dlgTitle"></dialog>
+<noscript><p style="padding:24px;font-size:20px">자바스크립트를 켜야 쓸 수 있어요.</p></noscript>
+<script src="vault.js"></script>
+<script src="gate.js"></script>
+</body>
+</html>
