@@ -595,3 +595,19 @@ body.withorig .app{margin-left:max(14px,calc((100vw - min(46vw,720px) - 1080px)/
 @media (max-width:520px){.mockrow{grid-template-columns:repeat(3,minmax(0,1fr))}}
 details.mini{margin-top:2px}details.mini>summary{cursor:pointer;color:var(--dim)}
 .myref b{color:var(--mint-t)}
+/* 평가 구조 탭 */
+.strgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:760px){.strgrid{grid-template-columns:1fr}}
+.strsl{background:rgba(6,9,32,.35);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.strsl label{display:block;margin-bottom:4px}
+.strsl input[type=range]{accent-color:var(--vio)}
+.strnum{min-width:2.4em;text-align:right;font-weight:900;font-size:1.25rem;color:var(--vio-t)}
+.strh{font-size:1rem;margin:16px 0 8px}
+.strcard{background:rgba(6,9,32,.42);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:8px 0}
+.strbar{display:flex;height:26px;border-radius:8px;overflow:hidden;font-size:.78rem;font-weight:800;color:#0b0f2e}
+.strbar span{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
+.strbar .sa{background:var(--mint)}.strbar .sc{background:var(--apri)}.strbar .sm{background:var(--vio)}
+.strbar .sx0{background:#8FD3FF}.strbar .sx1{background:#FFE3A1}.strbar .sx2{background:#CDBEFF}.strbar .sx3{background:#FFB3CD}
+.strd{font-weight:900;font-size:1.1rem;padding:2px 10px;border-radius:999px;background:rgba(255,255,255,.1)}
+.strd.up{color:#0b0f2e;background:var(--mint)}.strd.dn{color:var(--rose-t)}
+@media print{.strbar span{color:#000}}
